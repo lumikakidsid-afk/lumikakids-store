@@ -1195,7 +1195,10 @@
         // Supabase Configuration
         const SUPABASE_URL = 'https://mluhcieuafqfzzzmubly.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1sdWhjaWV1YWZxZnp6em11Ymx5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA3ODEzNjMsImV4cCI6MjA4NjM1NzM2M30.SU_Ak-aWoX4pc0Ye4wr8rlwGtKHTKMqAYa-7x2IWnZE';
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        // IMPORTANT: The Supabase CDN declares "var supabase" globally.
+        // We must NOT use let/const to redeclare it — that causes a SyntaxError.
+        // Instead, we reassign the existing global variable.
+        supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         function adminApp() {
             return {
