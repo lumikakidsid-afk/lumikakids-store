@@ -1,0 +1,2117 @@
+<!--
+    SETUP INSTRUCTIONS:
+    1. Buat project di https://supabase.com
+    2. Buka SQL Editor, copy-paste isi file setup-database.sql, jalankan
+    3. Buat Storage Buckets:
+       - "product-images" (public)
+       - "product-files" (private)
+       - "payment-proofs" (private)
+       - "store-assets" (public)
+    4. Di bawah, ganti SUPABASE_URL dan SUPABASE_ANON_KEY dengan milikmu
+       (Settings -> API -> Project URL dan anon/public key)
+    5. Buka admin.html di browser — form Setup Admin Pertama akan muncul otomatis
+       (User pertama yang mendaftar otomatis menjadi admin/superadmin)
+    6. Untuk menambahkan admin lain, jalankan di SQL Editor:
+       SELECT promote_to_admin('email@contoh.com');
+-->
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - Creative Maven</title>
+
+    <!-- Google Fonts - Work Sans -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <!-- ============================================ -->
+    <!-- FACEBOOK PIXEL & GOOGLE ANALYTICS CONFIG -->
+    <!-- ============================================ -->
+    <!-- Facebook Pixel Code (SDK load only, init dilakukan setelah load settings dari DB) -->
+    <script>
+        !function (f, b, e, v, n, t, s) {
+            if (f.fbq) return; n = f.fbq = function () {
+                n.callMethod ?
+                    n.callMethod.apply(n, arguments) : n.queue.push(arguments)
+            };
+            if (!f._fbq) f._fbq = n; n.push = n; n.loaded = !0; n.version = '2.0';
+            n.queue = []; t = b.createElement(e); t.async = !0;
+            t.src = v; s = b.getElementsByTagName(e)[0];
+            s.parentNode.insertBefore(t, s)
+        }(window, document, 'script',
+            'https://connect.facebook.net/en_US/fbevents.js');
+    </script>
+
+    <!-- Google Analytics 4 (SDK load only, config dilakukan setelah load settings dari DB) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-PLACEHOLDER"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag() { dataLayer.push(arguments); }
+        gtag('js', new Date());
+    </script>
+
+    <!-- Chart.js for Analytics -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Work Sans', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: '#FDB03D',
+                        secondary: '#F97316',
+                        background: '#F6F6F6',
+                        surface: '#FFFFFF',
+                        text: '#333333',
+                        muted: '#6B7280',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            font-family: 'Work Sans', sans-serif;
+            background-color: #F6F6F6;
+            color: #333333;
+        }
+
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+
+<body x-data="adminApp()" x-init="init()" class="min-h-screen">
+    <!-- Auth Check Loading -->
+    <div x-show="isLoading" class="fixed inset-0 bg-background z-50 flex items-center justify-center">
+        <div class="text-center">
+            <div class="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
+            <p class="mt-4 text-muted text-sm">Memuat...</p>
+        </div>
+    </div>
+
+    <!-- Access Denied -->
+    <div x-show="accessDenied" class="fixed inset-0 bg-background z-50 flex items-center justify-center"
+        style="display: none;">
+        <div class="text-center px-4">
+            <div class="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i data-lucide="lock" class="w-10 h-10 text-red-500"></i>
+            </div>
+            <h2 class="text-xl font-bold mb-2">Akses Ditolak</h2>
+            <p class="text-muted mb-6">Anda tidak memiliki izin untuk mengakses halaman ini.</p>
+            <a href="index.html"
+                class="inline-flex items-center gap-2 bg-primary text-text font-semibold py-2.5 px-6 rounded-full hover:bg-primary/90 transition-colors">
+                <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                Kembali ke Toko
+            </a>
+        </div>
+    </div>
+
+    <!-- First-Run Admin Setup -->
+    <div x-show="showSetup" class="fixed inset-0 bg-background z-50 flex items-center justify-center"
+        style="display: none;">
+        <div class="bg-white rounded-2xl shadow-lg p-8 max-w-md w-full mx-4">
+            <div class="text-center mb-6">
+                <div class="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i data-lucide="shield-check" class="w-8 h-8 text-primary"></i>
+                </div>
+                <h2 class="text-xl font-bold">Setup Admin Pertama</h2>
+                <p class="text-sm text-muted mt-2">Belum ada admin terdaftar. Daftarkan akun admin pertama untuk
+                    mengelola toko.</p>
+            </div>
+
+            <!-- Success message -->
+            <div x-show="setupSuccess" class="bg-green-50 border border-green-200 rounded-xl p-4 mb-4">
+                <p class="text-green-700 text-sm font-medium" x-text="setupSuccessMsg"></p>
+            </div>
+
+            <!-- Error message -->
+            <div x-show="setupError" class="bg-red-50 border border-red-200 rounded-xl p-4 mb-4">
+                <p class="text-red-600 text-sm" x-text="setupError"></p>
+            </div>
+
+            <form x-show="!setupSuccess" @submit.prevent="setupAdmin()" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Nama Lengkap</label>
+                    <input type="text" x-model="setupForm.fullName" required
+                        class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        placeholder="Nama admin">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <input type="email" x-model="setupForm.email" required
+                        class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        placeholder="admin@email.com">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                    <input type="password" x-model="setupForm.password" required minlength="6"
+                        class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        placeholder="Minimal 6 karakter">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">No. WhatsApp (opsional)</label>
+                    <input type="text" x-model="setupForm.phone"
+                        class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        placeholder="08xxxxxxxxxx">
+                </div>
+                <button type="submit" :disabled="setupLoading"
+                    class="w-full bg-primary text-text font-semibold py-3 rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50">
+                    <span x-show="!setupLoading">Daftarkan Admin</span>
+                    <span x-show="setupLoading">Mendaftarkan...</span>
+                </button>
+            </form>
+
+            <p class="text-xs text-gray-400 text-center mt-4">
+                Akun ini akan menjadi admin utama (superadmin) toko Anda.
+            </p>
+        </div>
+    </div>
+
+    <!-- Main Layout -->
+    <div x-show="!isLoading && !accessDenied && !showSetup" class="flex min-h-screen" style="display: none;">
+
+        <!-- Sidebar -->
+        <aside class="w-64 bg-white h-screen sticky top-0 border-r border-gray-200 flex flex-col hidden lg:flex">
+            <!-- Logo -->
+            <div class="p-6 border-b border-gray-100">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
+                        <i data-lucide="zap" class="w-6 h-6 text-white"></i>
+                    </div>
+                    <div>
+                        <p class="font-bold text-lg">Admin Panel</p>
+                        <p class="text-xs text-muted">Creative Maven</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navigation -->
+            <nav class="flex-1 p-4 space-y-1">
+                <button @click="currentSection = 'dashboard'"
+                    :class="currentSection === 'dashboard' ? 'bg-primary/10 text-text font-medium' : 'text-gray-600 hover:bg-gray-50'"
+                    class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors">
+                    <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
+                    Dashboard
+                </button>
+                <button @click="currentSection = 'products'"
+                    :class="currentSection === 'products' ? 'bg-primary/10 text-text font-medium' : 'text-gray-600 hover:bg-gray-50'"
+                    class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors">
+                    <i data-lucide="package" class="w-5 h-5"></i>
+                    Produk
+                </button>
+                <button @click="currentSection = 'orders'"
+                    :class="currentSection === 'orders' ? 'bg-primary/10 text-text font-medium' : 'text-gray-600 hover:bg-gray-50'"
+                    class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors">
+                    <i data-lucide="shopping-cart" class="w-5 h-5"></i>
+                    Pesanan
+                    <span x-show="pendingOrdersCount > 0" x-text="pendingOrdersCount"
+                        class="ml-auto bg-red-500 text-white text-xs px-2 py-0.5 rounded-full"></span>
+                </button>
+                <button @click="currentSection = 'customers'"
+                    :class="currentSection === 'customers' ? 'bg-primary/10 text-text font-medium' : 'text-gray-600 hover:bg-gray-50'"
+                    class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors">
+                    <i data-lucide="users" class="w-5 h-5"></i>
+                    Pelanggan
+                </button>
+                <button @click="currentSection = 'settings'"
+                    :class="currentSection === 'settings' ? 'bg-primary/10 text-text font-medium' : 'text-gray-600 hover:bg-gray-50'"
+                    class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors">
+                    <i data-lucide="settings" class="w-5 h-5"></i>
+                    Pengaturan
+                </button>
+            </nav>
+
+            <!-- User Profile -->
+            <div class="p-4 border-t border-gray-100">
+                <div class="flex items-center gap-3 px-4 py-3 bg-gray-50 rounded-xl">
+                    <img :src="profile?.avatar_url || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(profile?.full_name || 'Admin') + '&background=FDB03D&color=333'"
+                        alt="Admin" class="w-10 h-10 rounded-full object-cover">
+                    <div class="flex-1 min-w-0">
+                        <p class="font-medium text-sm truncate" x-text="profile?.full_name || 'Admin'"></p>
+                        <p class="text-xs text-muted truncate" x-text="user?.email"></p>
+                    </div>
+                    <button @click="logout()" class="p-1.5 hover:bg-gray-200 rounded-lg">
+                        <i data-lucide="log-out" class="w-4 h-4 text-gray-500"></i>
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Mobile Sidebar Overlay -->
+        <div x-show="showSidebar" x-transition:enter="transition ease-out duration-200"
+            x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+            x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100"
+            x-transition:leave-end="opacity-0" class="fixed inset-0 z-40 lg:hidden" style="display: none;">
+            <div class="absolute inset-0 bg-black/50" @click="showSidebar = false"></div>
+            <div class="absolute left-0 top-0 h-full w-64 bg-white shadow-xl">
+                <!-- Mobile Sidebar Content -->
+                <div class="p-4 border-b border-gray-100 flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+                            <i data-lucide="zap" class="w-5 h-5 text-white"></i>
+                        </div>
+                        <span class="font-bold">Admin Panel</span>
+                    </div>
+                    <button @click="showSidebar = false" class="p-2 hover:bg-gray-100 rounded-lg">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+                <nav class="p-4 space-y-1">
+                    <button @click="currentSection = 'dashboard'; showSidebar = false"
+                        :class="currentSection === 'dashboard' ? 'bg-primary/10 text-text font-medium' : 'text-gray-600 hover:bg-gray-50'"
+                        class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors">
+                        <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
+                        Dashboard
+                    </button>
+                    <button @click="currentSection = 'products'; showSidebar = false"
+                        :class="currentSection === 'products' ? 'bg-primary/10 text-text font-medium' : 'text-gray-600 hover:bg-gray-50'"
+                        class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors">
+                        <i data-lucide="package" class="w-5 h-5"></i>
+                        Produk
+                    </button>
+                    <button @click="currentSection = 'orders'; showSidebar = false"
+                        :class="currentSection === 'orders' ? 'bg-primary/10 text-text font-medium' : 'text-gray-600 hover:bg-gray-50'"
+                        class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors">
+                        <i data-lucide="shopping-cart" class="w-5 h-5"></i>
+                        Pesanan
+                    </button>
+                    <button @click="currentSection = 'customers'; showSidebar = false"
+                        :class="currentSection === 'customers' ? 'bg-primary/10 text-text font-medium' : 'text-gray-600 hover:bg-gray-50'"
+                        class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors">
+                        <i data-lucide="users" class="w-5 h-5"></i>
+                        Pelanggan
+                    </button>
+                    <button @click="currentSection = 'settings'; showSidebar = false"
+                        :class="currentSection === 'settings' ? 'bg-primary/10 text-text font-medium' : 'text-gray-600 hover:bg-gray-50'"
+                        class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors">
+                        <i data-lucide="settings" class="w-5 h-5"></i>
+                        Pengaturan
+                    </button>
+                </nav>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <main class="flex-1 lg:p-8 pb-24">
+            <!-- Mobile Header -->
+            <div class="lg:hidden bg-white p-4 sticky top-0 z-30 shadow-sm flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <button @click="showSidebar = true" class="p-2 hover:bg-gray-100 rounded-lg">
+                        <i data-lucide="menu" class="w-6 h-6"></i>
+                    </button>
+                    <span class="font-bold">Admin Panel</span>
+                </div>
+                <button @click="logout()" class="p-2 hover:bg-gray-100 rounded-lg text-red-500">
+                    <i data-lucide="log-out" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- DASHBOARD SECTION -->
+            <div x-show="currentSection === 'dashboard'" x-transition>
+                <div class="mb-8 px-4 lg:px-0">
+                    <h1 class="text-2xl font-bold">Dashboard</h1>
+                    <p class="text-muted">Ringkasan toko hari ini</p>
+                </div>
+
+                <!-- Stats Cards -->
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8 px-4 lg:px-0">
+                    <div class="bg-white rounded-xl p-4 lg:p-6 shadow-sm border border-gray-100">
+                        <div class="flex items-center justify-between mb-3">
+                            <div
+                                class="w-10 h-10 lg:w-12 lg:h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                                <i data-lucide="package" class="w-5 h-5 lg:w-6 lg:h-6 text-blue-600"></i>
+                            </div>
+                        </div>
+                        <p class="text-2xl lg:text-3xl font-bold" x-text="stats.totalProducts"></p>
+                        <p class="text-muted text-sm">Total Produk</p>
+                    </div>
+
+                    <div class="bg-white rounded-xl p-4 lg:p-6 shadow-sm border border-gray-100">
+                        <div class="flex items-center justify-between mb-3">
+                            <div
+                                class="w-10 h-10 lg:w-12 lg:h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                                <i data-lucide="shopping-bag" class="w-5 h-5 lg:w-6 lg:h-6 text-green-600"></i>
+                            </div>
+                        </div>
+                        <p class="text-2xl lg:text-3xl font-bold" x-text="stats.totalOrders"></p>
+                        <p class="text-muted text-sm">Total Pesanan</p>
+                    </div>
+
+                    <div class="bg-white rounded-xl p-4 lg:p-6 shadow-sm border border-gray-100">
+                        <div class="flex items-center justify-between mb-3">
+                            <div
+                                class="w-10 h-10 lg:w-12 lg:h-12 bg-primary/20 rounded-xl flex items-center justify-center">
+                                <i data-lucide="wallet" class="w-5 h-5 lg:w-6 lg:h-6 text-primary"></i>
+                            </div>
+                        </div>
+                        <p class="text-lg lg:text-2xl font-bold" x-text="formatCompactPrice(stats.revenue)"></p>
+                        <p class="text-muted text-sm">Revenue</p>
+                    </div>
+
+                    <div class="bg-white rounded-xl p-4 lg:p-6 shadow-sm border border-gray-100">
+                        <div class="flex items-center justify-between mb-3">
+                            <div
+                                class="w-10 h-10 lg:w-12 lg:h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+                                <i data-lucide="users" class="w-5 h-5 lg:w-6 lg:h-6 text-purple-600"></i>
+                            </div>
+                        </div>
+                        <p class="text-2xl lg:text-3xl font-bold" x-text="stats.customers"></p>
+                        <p class="text-muted text-sm">Pelanggan</p>
+                    </div>
+                </div>
+
+                <!-- Charts Section -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8 px-4 lg:px-0">
+                    <!-- Revenue Chart -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <h2 class="font-semibold">Revenue (7 Hari Terakhir)</h2>
+                            <span class="text-xs text-muted bg-gray-100 px-2 py-1 rounded-full">IDR</span>
+                        </div>
+                        <div class="h-64">
+                            <canvas id="revenueChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Orders by Status -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <h2 class="font-semibold">Status Pesanan</h2>
+                        </div>
+                        <div class="h-64 flex items-center justify-center">
+                            <canvas id="ordersStatusChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Sales by Category -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 lg:col-span-2">
+                        <div class="flex items-center justify-between mb-4">
+                            <h2 class="font-semibold">Penjualan per Kategori</h2>
+                        </div>
+                        <div class="h-64">
+                            <canvas id="categoryChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Orders -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mx-4 lg:mx-0">
+                    <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                        <h2 class="font-semibold">Pesanan Terbaru</h2>
+                        <button @click="currentSection = 'orders'"
+                            class="text-primary text-sm font-medium hover:underline">Lihat Semua</button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full min-w-[600px]">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-muted uppercase">No. Order
+                                    </th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-muted uppercase">Customer
+                                    </th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-muted uppercase">Total</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-muted uppercase">Status</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-muted uppercase">Tanggal
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100">
+                                <template x-for="order in recentOrders" :key="order.id">
+                                    <tr class="hover:bg-gray-50 cursor-pointer" @click="showOrderDetailModal(order)">
+                                        <td class="px-6 py-4 font-medium" x-text="order.order_number"></td>
+                                        <td class="px-6 py-4" x-text="order.customer_name"></td>
+                                        <td class="px-6 py-4 font-medium" x-text="formatPrice(order.total_amount)"></td>
+                                        <td class="px-6 py-4">
+                                            <span :class="getStatusBadgeClass(order.status)"
+                                                class="px-2.5 py-1 rounded-full text-xs font-medium capitalize"
+                                                x-text="getStatusLabel(order.status)">
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-4 text-sm text-muted" x-text="formatDate(order.created_at)">
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PRODUCTS SECTION -->
+            <div x-show="currentSection === 'products'" x-transition>
+                <div class="flex items-center justify-between mb-6 px-4 lg:px-0">
+                    <div>
+                        <h1 class="text-2xl font-bold">Produk</h1>
+                        <p class="text-muted">Kelola produk toko</p>
+                    </div>
+                    <button @click="openProductModal()"
+                        class="bg-primary text-text font-semibold py-2.5 px-5 rounded-full hover:bg-primary/90 transition-colors flex items-center gap-2">
+                        <i data-lucide="plus" class="w-5 h-5"></i>
+                        <span class="hidden sm:inline">Tambah Produk</span>
+                        <span class="sm:hidden">Tambah</span>
+                    </button>
+                </div>
+
+                <!-- Search & Filter -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6 mx-4 lg:mx-0">
+                    <div class="flex flex-col sm:flex-row gap-3">
+                        <div class="relative flex-1">
+                            <i data-lucide="search"
+                                class="w-4 h-4 text-muted absolute left-3 top-1/2 -translate-y-1/2"></i>
+                            <input type="text" x-model="productSearch" placeholder="Cari produk..."
+                                class="pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 w-full">
+                        </div>
+                        <select x-model="productFilter"
+                            class="px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white">
+                            <option value="all">Semua Status</option>
+                            <option value="active">Aktif</option>
+                            <option value="draft">Draft</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Products Table -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mx-4 lg:mx-0">
+                    <div class="overflow-x-auto">
+                        <table class="w-full min-w-[700px]">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-muted uppercase">Produk</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-muted uppercase">Kategori
+                                    </th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-muted uppercase">Harga</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-muted uppercase">Status</th>
+                                    <th class="px-6 py-3 text-right text-xs font-medium text-muted uppercase">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100">
+                                <template x-for="product in filteredProducts" :key="product.id">
+                                    <tr class="hover:bg-gray-50">
+                                        <td class="px-6 py-4">
+                                            <div class="flex items-center gap-3">
+                                                <img :src="product.image_url || 'https://via.placeholder.com/100?text=No+Image'"
+                                                    :alt="product.name" class="w-12 h-12 rounded-lg object-cover">
+                                                <div>
+                                                    <p class="font-medium text-sm" x-text="product.name"></p>
+                                                    <p class="text-xs text-muted capitalize" x-text="product.type"></p>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-4">
+                                            <span class="text-xs px-2 py-1 bg-gray-100 rounded-full capitalize"
+                                                x-text="product.category"></span>
+                                        </td>
+                                        <td class="px-6 py-4 text-sm">
+                                            <span class="font-medium"
+                                                x-text="formatPrice(product.sale_price || product.price)"></span>
+                                            <span x-show="product.sale_price > 0"
+                                                class="text-muted line-through ml-1 text-xs"
+                                                x-text="formatPrice(product.price)"></span>
+                                        </td>
+                                        <td class="px-6 py-4">
+                                            <button @click="toggleProductStatus(product)"
+                                                :class="product.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'"
+                                                class="px-3 py-1 rounded-full text-xs font-medium transition-colors">
+                                                <span x-text="product.status === 'active' ? 'Aktif' : 'Draft'"></span>
+                                            </button>
+                                        </td>
+                                        <td class="px-6 py-4 text-right">
+                                            <div class="flex items-center justify-end gap-2">
+                                                <button @click="openProductModal(product)"
+                                                    class="p-2 hover:bg-gray-100 rounded-lg text-gray-500">
+                                                    <i data-lucide="edit" class="w-4 h-4"></i>
+                                                </button>
+                                                <button @click="deleteProduct(product)"
+                                                    class="p-2 hover:bg-red-50 rounded-lg text-red-500">
+                                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Pagination -->
+                    <div class="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
+                        <p class="text-sm text-muted">
+                            Showing <span x-text="filteredProducts.length"></span> products
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ORDERS SECTION -->
+            <div x-show="currentSection === 'orders'" x-transition>
+                <div class="mb-6 px-4 lg:px-0">
+                    <h1 class="text-2xl font-bold">Pesanan</h1>
+                    <p class="text-muted">Kelola pesanan pelanggan</p>
+                </div>
+
+                <!-- Filter Tabs -->
+                <div class="flex overflow-x-auto hide-scrollbar gap-2 mb-6 px-4 lg:px-0 pb-2">
+                    <button @click="orderFilter = 'all'"
+                        :class="orderFilter === 'all' ? 'bg-primary text-text font-semibold' : 'bg-white text-gray-600 hover:bg-gray-50'"
+                        class="px-4 py-2 rounded-full text-sm whitespace-nowrap transition-colors border border-gray-200">
+                        Semua
+                    </button>
+                    <button @click="orderFilter = 'pending'"
+                        :class="orderFilter === 'pending' ? 'bg-primary text-text font-semibold' : 'bg-white text-gray-600 hover:bg-gray-50'"
+                        class="px-4 py-2 rounded-full text-sm whitespace-nowrap transition-colors border border-gray-200">
+                        Menunggu
+                    </button>
+                    <button @click="orderFilter = 'confirmed'"
+                        :class="orderFilter === 'confirmed' ? 'bg-primary text-text font-semibold' : 'bg-white text-gray-600 hover:bg-gray-50'"
+                        class="px-4 py-2 rounded-full text-sm whitespace-nowrap transition-colors border border-gray-200">
+                        Dikonfirmasi
+                    </button>
+                    <button @click="orderFilter = 'processing'"
+                        :class="orderFilter === 'processing' ? 'bg-primary text-text font-semibold' : 'bg-white text-gray-600 hover:bg-gray-50'"
+                        class="px-4 py-2 rounded-full text-sm whitespace-nowrap transition-colors border border-gray-200">
+                        Diproses
+                    </button>
+                    <button @click="orderFilter = 'shipped'"
+                        :class="orderFilter === 'shipped' ? 'bg-primary text-text font-semibold' : 'bg-white text-gray-600 hover:bg-gray-50'"
+                        class="px-4 py-2 rounded-full text-sm whitespace-nowrap transition-colors border border-gray-200">
+                        Dikirim
+                    </button>
+                    <button @click="orderFilter = 'completed'"
+                        :class="orderFilter === 'completed' ? 'bg-primary text-text font-semibold' : 'bg-white text-gray-600 hover:bg-gray-50'"
+                        class="px-4 py-2 rounded-full text-sm whitespace-nowrap transition-colors border border-gray-200">
+                        Selesai
+                    </button>
+                </div>
+
+                <!-- Orders Table -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mx-4 lg:mx-0">
+                    <div class="overflow-x-auto">
+                        <table class="w-full min-w-[800px]">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-muted uppercase">No. Order
+                                    </th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-muted uppercase">Pelanggan
+                                    </th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-muted uppercase">Total</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-muted uppercase">Metode</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-muted uppercase">Status</th>
+                                    <th class="px-6 py-3 text-right text-xs font-medium text-muted uppercase">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100">
+                                <template x-for="order in filteredOrders" :key="order.id">
+                                    <tr class="hover:bg-gray-50">
+                                        <td class="px-6 py-4 font-medium" x-text="order.order_number"></td>
+                                        <td class="px-6 py-4">
+                                            <p class="text-sm font-medium" x-text="order.customer_name"></p>
+                                            <p class="text-xs text-muted" x-text="order.customer_email"></p>
+                                        </td>
+                                        <td class="px-6 py-4 font-medium" x-text="formatPrice(order.total_amount)"></td>
+                                        <td class="px-6 py-4 text-sm uppercase" x-text="order.payment_method"></td>
+                                        <td class="px-6 py-4">
+                                            <span :class="getStatusBadgeClass(order.status)"
+                                                class="px-2.5 py-1 rounded-full text-xs font-medium capitalize"
+                                                x-text="getStatusLabel(order.status)">
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-4 text-right">
+                                            <button @click="showOrderDetailModal(order)"
+                                                class="text-primary text-sm font-medium hover:underline">
+                                                Detail
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CUSTOMERS SECTION -->
+            <div x-show="currentSection === 'customers'" x-transition>
+                <div class="mb-6 px-4 lg:px-0">
+                    <h1 class="text-2xl font-bold">Pelanggan</h1>
+                    <p class="text-muted">Daftar pelanggan toko</p>
+                </div>
+
+                <!-- Search -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6 mx-4 lg:mx-0">
+                    <div class="relative">
+                        <i data-lucide="search" class="w-4 h-4 text-muted absolute left-3 top-1/2 -translate-y-1/2"></i>
+                        <input type="text" x-model="customerSearch" placeholder="Cari pelanggan..."
+                            class="pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 w-full">
+                    </div>
+                </div>
+
+                <!-- Customers Table -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mx-4 lg:mx-0">
+                    <div class="overflow-x-auto">
+                        <table class="w-full min-w-[600px]">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-muted uppercase">Nama</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-muted uppercase">Email</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-muted uppercase">Telepon
+                                    </th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-muted uppercase">Total Order
+                                    </th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-muted uppercase">Bergabung
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100">
+                                <template x-for="customer in filteredCustomers" :key="customer.id">
+                                    <tr class="hover:bg-gray-50">
+                                        <td class="px-6 py-4">
+                                            <div class="flex items-center gap-3">
+                                                <img :src="customer.avatar_url || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(customer.full_name || 'User') + '&background=FDB03D&color=333'"
+                                                    class="w-10 h-10 rounded-full object-cover">
+                                                <span class="font-medium text-sm"
+                                                    x-text="customer.full_name || 'Tanpa Nama'"></span>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-4 text-sm" x-text="customer.email || '-'"></td>
+                                        <td class="px-6 py-4 text-sm" x-text="customer.phone || '-'"></td>
+                                        <td class="px-6 py-4 text-sm" x-text="customer.order_count || 0"></td>
+                                        <td class="px-6 py-4 text-sm text-muted"
+                                            x-text="formatDate(customer.created_at)"></td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SETTINGS SECTION -->
+            <div x-show="currentSection === 'settings'" x-transition>
+                <div class="mb-6 px-4 lg:px-0">
+                    <h1 class="text-2xl font-bold">Pengaturan</h1>
+                    <p class="text-muted">Konfigurasi toko</p>
+                </div>
+
+                <div class="space-y-6 px-4 lg:px-0">
+                    <!-- Store Info -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <h2 class="font-bold text-lg mb-5">Informasi Toko</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1.5">Nama Toko</label>
+                                <input type="text" x-model="settingsForm.store_name"
+                                    class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1.5">No. WhatsApp</label>
+                                <input type="text" x-model="settingsForm.whatsapp_number" placeholder="6281234567890"
+                                    class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50">
+                            </div>
+                            <div class="md:col-span-2">
+                                <label class="block text-sm font-medium text-gray-700 mb-1.5">Deskripsi Toko</label>
+                                <textarea x-model="settingsForm.store_description" rows="3"
+                                    class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"></textarea>
+                            </div>
+
+                            <!-- Owner Avatar Upload -->
+                            <div class="md:col-span-2 mt-2">
+                                <label class="block text-sm font-medium text-gray-700 mb-1.5">Foto Profil Owner</label>
+                                <div class="flex items-center gap-4">
+                                    <div
+                                        class="relative w-20 h-20 bg-gray-100 rounded-full overflow-hidden border border-gray-200">
+                                        <img :src="ownerAvatarPreview || settingsForm.owner_avatar_url || 'https://via.placeholder.com/150?text=Avatar'"
+                                            class="w-full h-full object-cover">
+                                    </div>
+                                    <div class="flex-1">
+                                        <div class="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center hover:border-primary/50 transition-colors cursor-pointer"
+                                            @click="$refs.ownerAvatarInput.click()">
+                                            <input type="file" x-ref="ownerAvatarInput"
+                                                @change="handleOwnerAvatarUpload($event)" accept="image/*"
+                                                class="hidden">
+                                            <div class="flex items-center justify-center gap-2 text-sm text-gray-500">
+                                                <i data-lucide="upload" class="w-4 h-4"></i>
+                                                <span>Ganti Foto Profil</span>
+                                            </div>
+                                            <p class="text-xs text-gray-400 mt-1">JPG, PNG max 2MB (disarankan rasio
+                                                1:1)</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Bank Settings -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <h2 class="font-bold text-lg mb-5">Pembayaran - Transfer Bank</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1.5">Nama Bank</label>
+                                <input type="text" x-model="settingsForm.bank_name" placeholder="Contoh: BCA"
+                                    class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1.5">No. Rekening</label>
+                                <input type="text" x-model="settingsForm.bank_account_number"
+                                    class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1.5">Atas Nama</label>
+                                <input type="text" x-model="settingsForm.bank_account_name"
+                                    class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- QRIS Settings -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <h2 class="font-bold text-lg mb-5">Pembayaran - QRIS</h2>
+                        <div class="flex flex-col md:flex-row gap-6">
+                            <div class="flex-1">
+                                <label class="block text-sm font-medium text-gray-700 mb-1.5">Upload Gambar QRIS</label>
+                                <div class="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center hover:border-primary/50 transition-colors cursor-pointer"
+                                    @click="$refs.qrisInput.click()">
+                                    <input type="file" x-ref="qrisInput" @change="handleQrisUpload($event)"
+                                        accept="image/*" class="hidden">
+                                    <i data-lucide="upload-cloud" class="w-10 h-10 text-gray-400 mx-auto mb-2"></i>
+                                    <p class="text-sm text-gray-500">Klik untuk upload QRIS</p>
+                                    <p class="text-xs text-gray-400 mt-1">JPG, PNG max 5MB</p>
+                                </div>
+                            </div>
+                            <div x-show="settingsForm.qris_image_url || qrisPreview" class="w-48">
+                                <label class="block text-sm font-medium text-gray-700 mb-1.5">Preview</label>
+                                <img :src="qrisPreview || settingsForm.qris_image_url"
+                                    class="w-full rounded-xl border border-gray-200">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tracking & Analytics -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <h2 class="font-bold text-lg mb-2">Tracking & Analytics</h2>
+                        <p class="text-sm text-muted mb-5">Konfigurasi Facebook Pixel dan Google Analytics untuk melacak
+                            pengunjung dan konversi.</p>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1.5">Facebook Pixel ID</label>
+                                <input type="text" x-model="settingsForm.fb_pixel_id"
+                                    placeholder="Contoh: 1234567890123456"
+                                    class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50">
+                                <p class="text-xs text-gray-400 mt-1">Dapatkan dari Facebook Events Manager</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1.5">Google Analytics 4
+                                    Measurement ID</label>
+                                <input type="text" x-model="settingsForm.ga4_measurement_id"
+                                    placeholder="Contoh: G-XXXXXXXXXX"
+                                    class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50">
+                                <p class="text-xs text-gray-400 mt-1">Dapatkan dari Google Analytics → Admin → Data
+                                    Streams</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Save Button -->
+                    <button @click="saveSettings()" :disabled="savingSettings"
+                        class="w-full bg-primary text-text font-semibold py-3 rounded-full hover:bg-primary/90 transition-colors flex items-center justify-center gap-2">
+                        <div x-show="savingSettings"
+                            class="w-5 h-5 border-2 border-text border-t-transparent rounded-full animate-spin"></div>
+                        <i x-show="!savingSettings" data-lucide="save" class="w-5 h-5"></i>
+                        <span x-text="savingSettings ? 'Menyimpan...' : 'Simpan Pengaturan'"></span>
+                    </button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Product Modal -->
+    <div x-show="showProductModal" x-transition:enter="transition ease-out duration-200"
+        x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+        x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0" class="fixed inset-0 z-50" style="display: none;">
+
+        <div class="absolute inset-0 bg-black/50" @click="closeProductModal()"></div>
+
+        <div class="absolute inset-0 flex items-center justify-center p-4">
+            <div x-show="showProductModal" x-transition:enter="transition ease-out duration-300"
+                x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
+                x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 scale-100"
+                x-transition:leave-end="opacity-0 scale-95"
+                class="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+
+                <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white">
+                    <h2 class="text-lg font-bold" x-text="editingProduct ? 'Edit Produk' : 'Tambah Produk'"></h2>
+                    <button @click="closeProductModal()" class="p-2 hover:bg-gray-100 rounded-lg">
+                        <i data-lucide="x" class="w-5 h-5 text-gray-500"></i>
+                    </button>
+                </div>
+
+                <div class="p-6 space-y-4">
+                    <!-- Product Name -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1.5">Nama Produk</label>
+                        <input type="text" x-model="productForm.name" placeholder="Nama produk"
+                            class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50">
+                    </div>
+
+                    <!-- Description -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1.5">Deskripsi</label>
+                        <textarea x-model="productForm.description" rows="3" placeholder="Deskripsi produk"
+                            class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"></textarea>
+                    </div>
+
+                    <!-- Category -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1.5">Kategori</label>
+                        <select x-model="productForm.category"
+                            @change="productForm.type = productForm.category === 'fisik' ? 'physical' : 'digital'"
+                            class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white">
+                            <option value="ebook">Ebook</option>
+                            <option value="video">Video</option>
+                            <option value="template">Template</option>
+                            <option value="workshop">Workshop</option>
+                            <option value="fisik">Produk Fisik</option>
+                        </select>
+                    </div>
+
+                    <!-- Prices -->
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1.5">Harga Normal</label>
+                            <input type="number" x-model="productForm.price" placeholder="0"
+                                class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1.5">Harga Sale (opsional)</label>
+                            <input type="number" x-model="productForm.sale_price" placeholder="0"
+                                class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50">
+                        </div>
+                    </div>
+
+                    <!-- Stock & Weight (if physical) -->
+                    <div x-show="productForm.category === 'fisik'" class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1.5">Stok</label>
+                            <input type="number" x-model="productForm.stock" placeholder="0"
+                                class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1.5">Berat (gram)</label>
+                            <input type="number" x-model="productForm.weight" placeholder="0"
+                                class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50">
+                        </div>
+                    </div>
+
+                    <!-- Image Upload -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1.5">Gambar Produk</label>
+                        <div class="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center hover:border-primary/50 transition-colors cursor-pointer"
+                            @click="$refs.productImageInput.click()">
+                            <input type="file" x-ref="productImageInput" @change="handleProductImage($event)"
+                                accept="image/*" class="hidden">
+                            <img x-show="productImagePreview || productForm.image_url"
+                                :src="productImagePreview || productForm.image_url"
+                                class="w-32 h-32 object-cover rounded-lg mx-auto mb-2">
+                            <div x-show="!productImagePreview && !productForm.image_url">
+                                <i data-lucide="upload-cloud" class="w-8 h-8 text-gray-400 mx-auto mb-2"></i>
+                                <p class="text-sm text-gray-500">Klik untuk upload gambar</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Digital File Section -->
+                    <div x-show="productForm.type === 'digital'" class="space-y-3">
+                        <label class="block text-sm font-medium text-gray-700">File Produk Digital</label>
+                        <p class="text-xs text-muted">Pilih salah satu: paste link atau upload file</p>
+
+                        <!-- Option 1: Link Eksternal -->
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Link File (Google Drive,
+                                Dropbox, dll)</label>
+                            <input type="url" x-model="productForm.file_url"
+                                placeholder="https://drive.google.com/file/d/xxx/view"
+                                class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm">
+                            <p class="text-xs text-gray-400 mt-1">Paste link akses produk digital di sini</p>
+                        </div>
+
+                        <!-- Option 2: Upload File (divider) -->
+                        <div class="flex items-center gap-3">
+                            <div class="flex-1 border-t border-gray-200"></div>
+                            <span class="text-xs text-gray-400">atau upload file</span>
+                            <div class="flex-1 border-t border-gray-200"></div>
+                        </div>
+
+                        <!-- Upload File ke Supabase Storage -->
+                        <div class="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center hover:border-primary/50 transition-colors cursor-pointer"
+                            @click="$refs.productFileInput.click()">
+                            <input type="file" x-ref="productFileInput" @change="handleProductFile($event)"
+                                class="hidden">
+                            <p class="text-sm text-gray-500" x-text="productFileName || 'Klik untuk upload file'"></p>
+                        </div>
+                    </div>
+
+                    <!-- YouTube Video URL -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1.5">YouTube Video URL
+                            (opsional)</label>
+                        <input type="url" x-model="productForm.youtube_url"
+                            placeholder="https://www.youtube.com/watch?v=xxxxx"
+                            class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm">
+                        <p class="text-xs text-gray-400 mt-1">Format: youtube.com/watch?v=, youtu.be/,
+                            youtube.com/embed/</p>
+                    </div>
+
+                    <!-- Status & Featured -->
+                    <div class="flex items-center gap-4">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" x-model="productForm.featured" class="w-4 h-4 text-primary rounded">
+                            <span class="text-sm">Produk Unggulan</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" :checked="productForm.status === 'active'"
+                                @change="productForm.status = $event.target.checked ? 'active' : 'draft'"
+                                class="w-4 h-4 text-primary rounded">
+                            <span class="text-sm">Aktif</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="px-6 py-4 border-t border-gray-100 flex gap-3">
+                    <button @click="closeProductModal()"
+                        class="flex-1 py-2.5 border border-gray-200 rounded-full font-medium hover:bg-gray-50 transition-colors">
+                        Batal
+                    </button>
+                    <button @click="saveProduct()" :disabled="savingProduct"
+                        class="flex-1 py-2.5 bg-primary text-text rounded-full font-medium hover:bg-primary/90 transition-colors flex items-center justify-center gap-2">
+                        <div x-show="savingProduct"
+                            class="w-4 h-4 border-2 border-text border-t-transparent rounded-full animate-spin"></div>
+                        <span x-text="savingProduct ? 'Menyimpan...' : 'Simpan'"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Order Detail Modal -->
+    <div x-show="showOrderDetail" x-transition:enter="transition ease-out duration-200"
+        x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+        x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0" class="fixed inset-0 z-50" style="display: none;">
+
+        <div class="absolute inset-0 bg-black/50" @click="closeOrderDetail()"></div>
+
+        <div class="absolute inset-0 flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <div x-show="showOrderDetail" x-transition:enter="transition ease-out duration-300"
+                x-transition:enter-start="opacity-0 translate-y-full sm:translate-y-0 sm:scale-95"
+                x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+                x-transition:leave="transition ease-in duration-200"
+                x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+                x-transition:leave-end="opacity-0 translate-y-full sm:translate-y-0 sm:scale-95"
+                class="bg-white w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl shadow-xl">
+
+                <div
+                    class="sticky top-0 bg-white px-6 py-4 border-b border-gray-100 flex items-center justify-between z-10">
+                    <div>
+                        <h2 class="text-lg font-bold" x-text="selectedOrder?.order_number"></h2>
+                        <p class="text-xs text-muted" x-text="formatDate(selectedOrder?.created_at)"></p>
+                    </div>
+                    <button @click="closeOrderDetail()" class="p-2 hover:bg-gray-100 rounded-lg">
+                        <i data-lucide="x" class="w-5 h-5 text-gray-500"></i>
+                    </button>
+                </div>
+
+                <div class="p-6 space-y-5">
+                    <!-- Status -->
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm text-muted">Status Pesanan</span>
+                        <span :class="getStatusBadgeClass(selectedOrder?.status)"
+                            class="px-3 py-1.5 rounded-full text-sm font-medium capitalize"
+                            x-text="getStatusLabel(selectedOrder?.status)">
+                        </span>
+                    </div>
+
+                    <!-- Customer Info -->
+                    <div class="bg-gray-50 rounded-xl p-4">
+                        <h3 class="font-semibold mb-3">Informasi Pelanggan</h3>
+                        <div class="space-y-1 text-sm">
+                            <p><span class="text-muted">Nama:</span> <span x-text="selectedOrder?.customer_name"></span>
+                            </p>
+                            <p><span class="text-muted">Email:</span> <span
+                                    x-text="selectedOrder?.customer_email"></span></p>
+                            <p x-show="selectedOrder?.customer_phone"><span class="text-muted">Telepon:</span> <span
+                                    x-text="selectedOrder?.customer_phone"></span></p>
+                        </div>
+                    </div>
+
+                    <!-- Items -->
+                    <div>
+                        <h3 class="font-semibold mb-3">Item Pesanan</h3>
+                        <div class="space-y-3">
+                            <template x-for="item in selectedOrder?.items" :key="item.id">
+                                <div class="flex items-center gap-3 bg-gray-50 rounded-xl p-3">
+                                    <div
+                                        class="w-14 h-14 bg-gray-200 rounded-lg flex items-center justify-center flex-shrink-0">
+                                        <i data-lucide="package" class="w-6 h-6 text-gray-400"></i>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <p class="font-medium text-sm truncate" x-text="item.product_name"></p>
+                                        <p class="text-xs text-muted"
+                                            x-text="item.quantity + ' x ' + formatPrice(item.price)"></p>
+                                    </div>
+                                    <p class="font-semibold text-sm" x-text="formatPrice(item.price * item.quantity)">
+                                    </p>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Shipping Address -->
+                    <div x-show="selectedOrder?.shipping_address">
+                        <h3 class="font-semibold mb-2">Alamat Pengiriman</h3>
+                        <div class="bg-gray-50 rounded-xl p-4 text-sm">
+                            <p x-text="selectedOrder?.shipping_address"></p>
+                            <p class="text-muted mt-1" x-text="selectedOrder?.shipping_city"></p>
+                        </div>
+                    </div>
+
+                    <!-- Tracking Number (if shipped or completed) -->
+                    <div
+                        x-show="selectedOrder?.tracking_number || (selectedOrder?.status === 'processing' && selectedOrder?.has_physical_items)">
+                        <h3 class="font-semibold mb-2">Nomor Resi</h3>
+                        <div class="flex gap-2">
+                            <input type="text" x-model="trackingNumber" placeholder="Masukkan nomor resi"
+                                class="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50">
+                        </div>
+                    </div>
+
+                    <!-- Payment Proof -->
+                    <div x-show="selectedOrder?.payment_proof_url">
+                        <h3 class="font-semibold mb-2">Bukti Pembayaran</h3>
+                        <img :src="selectedOrder?.payment_proof_url" alt="Bukti Pembayaran"
+                            class="w-full rounded-xl border border-gray-200">
+                    </div>
+
+                    <!-- Total -->
+                    <div class="border-t border-gray-100 pt-4">
+                        <div class="flex justify-between items-center">
+                            <span class="font-semibold">Total</span>
+                            <span class="text-xl font-bold text-primary"
+                                x-text="formatPrice(selectedOrder?.total_amount)"></span>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="space-y-2">
+                        <button x-show="selectedOrder?.status === 'pending' && selectedOrder?.payment_proof_url"
+                            @click="updateOrderStatus('confirmed')" :disabled="updatingOrder"
+                            class="w-full bg-green-500 text-white font-semibold py-3 rounded-full hover:bg-green-600 transition-colors flex items-center justify-center gap-2">
+                            <i data-lucide="check" class="w-5 h-5"></i>
+                            <span>Konfirmasi Pembayaran</span>
+                        </button>
+
+                        <button x-show="selectedOrder?.status === 'confirmed'" @click="updateOrderStatus('processing')"
+                            :disabled="updatingOrder"
+                            class="w-full bg-blue-500 text-white font-semibold py-3 rounded-full hover:bg-blue-600 transition-colors flex items-center justify-center gap-2">
+                            <i data-lucide="package" class="w-5 h-5"></i>
+                            <span>Proses Pesanan</span>
+                        </button>
+
+                        <button x-show="selectedOrder?.status === 'processing' && selectedOrder?.has_physical_items"
+                            @click="updateOrderStatus('shipped')" :disabled="updatingOrder || !trackingNumber"
+                            class="w-full bg-indigo-500 text-white font-semibold py-3 rounded-full hover:bg-indigo-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
+                            <i data-lucide="truck" class="w-5 h-5"></i>
+                            <span>Kirim Pesanan</span>
+                        </button>
+
+                        <button x-show="selectedOrder?.status === 'processing' && !selectedOrder?.has_physical_items"
+                            @click="updateOrderStatus('completed')" :disabled="updatingOrder"
+                            class="w-full bg-green-500 text-white font-semibold py-3 rounded-full hover:bg-green-600 transition-colors flex items-center justify-center gap-2">
+                            <i data-lucide="check-circle" class="w-5 h-5"></i>
+                            <span>Selesaikan Pesanan</span>
+                        </button>
+
+                        <button x-show="selectedOrder?.status === 'shipped'" @click="updateOrderStatus('completed')"
+                            :disabled="updatingOrder"
+                            class="w-full bg-green-500 text-white font-semibold py-3 rounded-full hover:bg-green-600 transition-colors flex items-center justify-center gap-2">
+                            <i data-lucide="check-circle" class="w-5 h-5"></i>
+                            <span>Selesaikan Pesanan</span>
+                        </button>
+
+                        <button x-show="['pending', 'confirmed'].includes(selectedOrder?.status)"
+                            @click="updateOrderStatus('cancelled')" :disabled="updatingOrder"
+                            class="w-full bg-red-100 text-red-600 font-semibold py-3 rounded-full hover:bg-red-200 transition-colors flex items-center justify-center gap-2">
+                            <i data-lucide="x" class="w-5 h-5"></i>
+                            <span>Batalkan Pesanan</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div x-data="{ toasts: [] }"
+        x-on:show-toast.window="toasts.push({message: $event.detail.message, type: $event.detail.type || 'success', id: Date.now()}); setTimeout(() => toasts.shift(), 3000)"
+        class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] space-y-2 pointer-events-none">
+        <template x-for="toast in toasts" :key="toast.id">
+            <div x-transition
+                :class="toast.type === 'error' ? 'bg-red-500' : toast.type === 'warning' ? 'bg-yellow-500' : 'bg-green-500'"
+                class="text-white px-6 py-3 rounded-full shadow-lg text-sm font-medium pointer-events-auto">
+                <span x-text="toast.message"></span>
+            </div>
+        </template>
+    </div>
+
+    <!-- Supabase Config -->
+    <script>
+        // Supabase Configuration
+        const SUPABASE_URL = 'https://mluhcieuafqfzzzmubly.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1sdWhjaWV1YWZxZnp6em11Ymx5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA3ODEzNjMsImV4cCI6MjA4NjM1NzM2M30.SU_Ak-aWoX4pc0Ye4wr8rlwGtKHTKMqAYa-7x2IWnZE';
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        function adminApp() {
+            return {
+                // State
+                currentSection: 'dashboard',
+                user: null,
+                profile: null,
+                isLoading: true,
+                accessDenied: false,
+                showSetup: false,
+                setupForm: { fullName: '', email: '', password: '', phone: '' },
+                setupLoading: false,
+                setupError: '',
+                setupSuccess: false,
+                setupSuccessMsg: '',
+                showSidebar: false,
+
+                // Dashboard
+                stats: { totalProducts: 0, totalOrders: 0, revenue: 0, customers: 0 },
+                recentOrders: [],
+
+                // Products
+                products: [],
+                productSearch: '',
+                productFilter: 'all',
+                showProductModal: false,
+                editingProduct: null,
+                productForm: {
+                    name: '', description: '', price: 0, sale_price: 0,
+                    category: 'ebook', type: 'digital', stock: 0, weight: 0,
+                    status: 'active', featured: false, image_url: '', file_url: '', youtube_url: ''
+                },
+                productImageFile: null,
+                productImagePreview: null,
+                productDigitalFile: null,
+                productFileName: null,
+                savingProduct: false,
+
+                // Orders
+                orders: [],
+                orderSearch: '',
+                orderFilter: 'all',
+                selectedOrder: null,
+                showOrderDetail: false,
+                trackingNumber: '',
+                updatingOrder: false,
+
+                // Customers
+                customers: [],
+                customerSearch: '',
+
+                // Settings
+                settingsForm: {},
+                qrisFile: null,
+                qrisPreview: null,
+                ownerAvatarFile: null,
+                ownerAvatarPreview: null,
+                savingSettings: false,
+
+                // Charts
+                revenueChart: null,
+                ordersStatusChart: null,
+                categoryChart: null,
+                chartData: {
+                    dailyRevenue: [],
+                    ordersByStatus: {},
+                    salesByCategory: {}
+                },
+
+                // Computed
+                get pendingOrdersCount() {
+                    return this.orders.filter(o => o.status === 'pending').length;
+                },
+
+                get filteredProducts() {
+                    let result = this.products;
+                    if (this.productSearch) {
+                        const query = this.productSearch.toLowerCase();
+                        result = result.filter(p => p.name.toLowerCase().includes(query));
+                    }
+                    if (this.productFilter !== 'all') {
+                        result = result.filter(p => p.status === this.productFilter);
+                    }
+                    return result;
+                },
+
+                get filteredOrders() {
+                    let result = this.orders;
+                    if (this.orderFilter !== 'all') {
+                        result = result.filter(o => o.status === this.orderFilter);
+                    }
+                    return result;
+                },
+
+                get filteredCustomers() {
+                    let result = this.customers;
+                    if (this.customerSearch) {
+                        const query = this.customerSearch.toLowerCase();
+                        result = result.filter(c =>
+                            (c.full_name && c.full_name.toLowerCase().includes(query)) ||
+                            (c.email && c.email.toLowerCase().includes(query))
+                        );
+                    }
+                    return result;
+                },
+
+                // Methods
+                async init() {
+                    // Check auth
+                    const { data: { session } } = await supabase.auth.getSession();
+                    if (!session) {
+                        // Cek apakah sudah ada admin di sistem
+                        const { data: admins } = await supabase
+                            .from('profiles')
+                            .select('id')
+                            .eq('role', 'admin')
+                            .limit(1);
+
+                        if (!admins || admins.length === 0) {
+                            // Belum ada admin, tampilkan form setup
+                            this.showSetup = true;
+                            this.isLoading = false;
+                            this.$nextTick(() => lucide.createIcons());
+                            return;
+                        }
+
+                        // Admin sudah ada, redirect ke login
+                        window.location.href = 'index.html';
+                        return;
+                    }
+
+                    this.user = session.user;
+
+                    // Load profile and check admin role
+                    const { data: profile, error } = await supabase
+                        .from('profiles')
+                        .select('*')
+                        .eq('id', session.user.id)
+                        .single();
+
+                    if (error || profile?.role !== 'admin') {
+                        this.accessDenied = true;
+                        this.isLoading = false;
+                        return;
+                    }
+
+                    this.profile = profile;
+
+                    // Load all data
+                    await Promise.all([
+                        this.loadDashboardStats(),
+                        this.loadProducts(),
+                        this.loadOrders(),
+                        this.loadCustomers(),
+                        this.loadSettings()
+                    ]);
+
+                    // Initialize tracking dengan ID dari database
+                    this.initTracking();
+
+                    this.isLoading = false;
+                    this.$nextTick(() => {
+                        lucide.createIcons();
+                        // Initialize section watcher for charts
+                        this.initWatchers();
+                    });
+                },
+
+                async setupAdmin() {
+                    this.setupLoading = true;
+                    this.setupError = '';
+
+                    const { data, error } = await supabase.auth.signUp({
+                        email: this.setupForm.email,
+                        password: this.setupForm.password,
+                        options: {
+                            data: {
+                                full_name: this.setupForm.fullName,
+                                phone: this.setupForm.phone || ''
+                            }
+                        }
+                    });
+
+                    if (error) {
+                        this.setupError = error.message;
+                        this.setupLoading = false;
+                        return;
+                    }
+
+                    this.setupSuccess = true;
+
+                    if (data.session) {
+                        // Email confirmation disabled — langsung masuk
+                        this.setupSuccessMsg = 'Admin berhasil didaftarkan! Mengalihkan ke dashboard...';
+                        setTimeout(() => window.location.reload(), 1500);
+                    } else {
+                        // Email confirmation aktif — perlu verifikasi dulu
+                        this.setupSuccessMsg = 'Admin berhasil didaftarkan! Cek email Anda untuk konfirmasi, lalu buka halaman ini lagi dan login.';
+                        this.setupLoading = false;
+                    }
+                },
+
+                async loadDashboardStats() {
+                    // Total products
+                    const { count: productCount } = await supabase
+                        .from('products')
+                        .select('*', { count: 'exact', head: true });
+                    this.stats.totalProducts = productCount || 0;
+
+                    // Total orders
+                    const { count: orderCount } = await supabase
+                        .from('orders')
+                        .select('*', { count: 'exact', head: true });
+                    this.stats.totalOrders = orderCount || 0;
+
+                    // Revenue
+                    const { data: revenueData } = await supabase
+                        .from('orders')
+                        .select('total_amount')
+                        .in('status', ['confirmed', 'processing', 'shipped', 'completed']);
+                    this.stats.revenue = revenueData?.reduce((sum, o) => sum + (o.total_amount || 0), 0) || 0;
+
+                    // Customers (distinct user_id from orders)
+                    const { data: customerData } = await supabase
+                        .from('orders')
+                        .select('user_id')
+                        .not('user_id', 'is', null);
+                    const uniqueCustomers = new Set(customerData?.map(o => o.user_id));
+                    this.stats.customers = uniqueCustomers.size;
+
+                    // Recent orders
+                    const { data: recentData } = await supabase
+                        .from('orders')
+                        .select('*')
+                        .order('created_at', { ascending: false })
+                        .limit(5);
+                    this.recentOrders = recentData || [];
+
+                    // Load chart data
+                    await this.loadChartData();
+                    this.$nextTick(() => this.renderCharts());
+                },
+
+                async loadChartData() {
+                    // Get last 7 days revenue
+                    const sevenDaysAgo = new Date();
+                    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+                    const { data: dailyOrders } = await supabase
+                        .from('orders')
+                        .select('created_at, total_amount, status')
+                        .gte('created_at', sevenDaysAgo.toISOString())
+                        .order('created_at', { ascending: true });
+
+                    // Process daily revenue
+                    const dailyRevenue = {};
+                    const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+
+                    // Initialize last 7 days with 0
+                    for (let i = 6; i >= 0; i--) {
+                        const d = new Date();
+                        d.setDate(d.getDate() - i);
+                        const dayName = days[d.getDay()];
+                        dailyRevenue[dayName] = 0;
+                    }
+
+                    dailyOrders?.forEach(order => {
+                        const date = new Date(order.created_at);
+                        const dayName = days[date.getDay()];
+                        if (dailyRevenue.hasOwnProperty(dayName) &&
+                            ['confirmed', 'processing', 'shipped', 'completed'].includes(order.status)) {
+                            dailyRevenue[dayName] += order.total_amount || 0;
+                        }
+                    });
+
+                    this.chartData.dailyRevenue = dailyRevenue;
+
+                    // Orders by status
+                    const { data: statusData } = await supabase
+                        .from('orders')
+                        .select('status');
+
+                    const ordersByStatus = {};
+                    statusData?.forEach(order => {
+                        ordersByStatus[order.status] = (ordersByStatus[order.status] || 0) + 1;
+                    });
+                    this.chartData.ordersByStatus = ordersByStatus;
+
+                    // Sales by category (from order items)
+                    const { data: categorySales } = await supabase
+                        .from('order_items')
+                        .select(`
+                            product_type,
+                            quantity,
+                            order:orders!inner(status)
+                        `)
+                        .in('order.status', ['confirmed', 'processing', 'shipped', 'completed']);
+
+                    const salesByCategory = {};
+                    categorySales?.forEach(item => {
+                        salesByCategory[item.product_type] = (salesByCategory[item.product_type] || 0) + (item.quantity || 0);
+                    });
+                    this.chartData.salesByCategory = salesByCategory;
+                },
+
+                renderCharts() {
+                    this.renderRevenueChart();
+                    this.renderOrdersStatusChart();
+                    this.renderCategoryChart();
+                },
+
+                renderRevenueChart() {
+                    const ctx = document.getElementById('revenueChart');
+                    if (!ctx) return;
+
+                    if (this.revenueChart) {
+                        this.revenueChart.destroy();
+                    }
+
+                    const labels = Object.keys(this.chartData.dailyRevenue);
+                    const data = Object.values(this.chartData.dailyRevenue);
+
+                    this.revenueChart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: 'Revenue (IDR)',
+                                data: data,
+                                borderColor: '#FDB03D',
+                                backgroundColor: 'rgba(253, 176, 61, 0.1)',
+                                borderWidth: 2,
+                                fill: true,
+                                tension: 0.4,
+                                pointBackgroundColor: '#FDB03D',
+                                pointBorderColor: '#fff',
+                                pointBorderWidth: 2,
+                                pointRadius: 4
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        callback: function (value) {
+                                            if (value >= 1000000) return 'Rp ' + (value / 1000000).toFixed(1) + 'M';
+                                            if (value >= 1000) return 'Rp ' + (value / 1000).toFixed(0) + 'K';
+                                            return 'Rp ' + value;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                },
+
+                renderOrdersStatusChart() {
+                    const ctx = document.getElementById('ordersStatusChart');
+                    if (!ctx) return;
+
+                    if (this.ordersStatusChart) {
+                        this.ordersStatusChart.destroy();
+                    }
+
+                    const statusColors = {
+                        'pending': '#FCD34D',
+                        'confirmed': '#60A5FA',
+                        'processing': '#818CF8',
+                        'shipped': '#22D3EE',
+                        'completed': '#4ADE80',
+                        'cancelled': '#F87171'
+                    };
+
+                    const labels = Object.keys(this.chartData.ordersByStatus).map(s => this.getStatusLabel(s));
+                    const data = Object.values(this.chartData.ordersByStatus);
+                    const colors = Object.keys(this.chartData.ordersByStatus).map(s => statusColors[s] || '#9CA3AF');
+
+                    this.ordersStatusChart = new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                data: data,
+                                backgroundColor: colors,
+                                borderWidth: 0
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'right',
+                                    labels: {
+                                        usePointStyle: true,
+                                        padding: 15
+                                    }
+                                }
+                            }
+                        }
+                    });
+                },
+
+                renderCategoryChart() {
+                    const ctx = document.getElementById('categoryChart');
+                    if (!ctx) return;
+
+                    if (this.categoryChart) {
+                        this.categoryChart.destroy();
+                    }
+
+                    const categoryColors = {
+                        'ebook': '#FDB03D',
+                        'video': '#F97316',
+                        'template': '#22D3EE',
+                        'workshop': '#818CF8',
+                        'fisik': '#4ADE80'
+                    };
+
+                    const labels = Object.keys(this.chartData.salesByCategory).map(c => c.toUpperCase());
+                    const data = Object.values(this.chartData.salesByCategory);
+                    const colors = Object.keys(this.chartData.salesByCategory).map(c => categoryColors[c] || '#9CA3AF');
+
+                    this.categoryChart = new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: 'Jumlah Terjual',
+                                data: data,
+                                backgroundColor: colors,
+                                borderRadius: 6,
+                                borderSkipped: false
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: { stepSize: 1 }
+                                }
+                            }
+                        }
+                    });
+                },
+
+                async loadProducts() {
+                    const { data, error } = await supabase
+                        .from('products')
+                        .select('*')
+                        .order('created_at', { ascending: false });
+
+                    if (error) {
+                        this.showToast('Gagal memuat produk', 'error');
+                    } else {
+                        this.products = data || [];
+                    }
+                },
+
+                async loadOrders() {
+                    const { data, error } = await supabase
+                        .from('orders')
+                        .select(`
+                            *,
+                            items:order_items(*)
+                        `)
+                        .order('created_at', { ascending: false });
+
+                    if (error) {
+                        this.showToast('Gagal memuat pesanan', 'error');
+                    } else {
+                        this.orders = data || [];
+                    }
+                },
+
+                async loadCustomers() {
+                    const { data: profiles, error } = await supabase
+                        .from('profiles')
+                        .select('*')
+                        .order('created_at', { ascending: false });
+
+                    if (error) {
+                        this.showToast('Gagal memuat pelanggan', 'error');
+                        return;
+                    }
+
+                    // Get order counts for each customer
+                    const { data: orders } = await supabase
+                        .from('orders')
+                        .select('user_id');
+
+                    const orderCounts = {};
+                    orders?.forEach(o => {
+                        orderCounts[o.user_id] = (orderCounts[o.user_id] || 0) + 1;
+                    });
+
+                    this.customers = (profiles || []).map(p => ({
+                        ...p,
+                        order_count: orderCounts[p.id] || 0
+                    }));
+                },
+
+                async loadSettings() {
+                    const { data, error } = await supabase
+                        .from('store_settings')
+                        .select('*')
+                        .single();
+
+                    if (data) {
+                        this.settingsForm = { ...data };
+                    }
+                },
+
+                initTracking() {
+                    const pixelId = this.settingsForm?.fb_pixel_id;
+                    const gaId = this.settingsForm?.ga4_measurement_id;
+
+                    // Init Facebook Pixel jika ID valid
+                    if (pixelId && pixelId !== '') {
+                        if (typeof fbq !== 'undefined') {
+                            fbq('init', pixelId);
+                            fbq('track', 'PageView');
+                            window._fbPixelInitialized = true;
+                        }
+                    }
+
+                    // Init GA4 jika ID valid
+                    if (gaId && gaId !== '') {
+                        const gaScript = document.querySelector('script[src*="gtag/js"]');
+                        if (gaScript) {
+                            gaScript.src = 'https://www.googletagmanager.com/gtag/js?id=' + gaId;
+                        }
+                        if (typeof gtag !== 'undefined') {
+                            gtag('config', gaId, { 'send_page_view': true });
+                        }
+                        window._ga4Id = gaId;
+                    }
+                },
+
+                // Product Modal
+                openProductModal(product = null) {
+                    this.editingProduct = product;
+                    if (product) {
+                        this.productForm = { ...product };
+                    } else {
+                        this.productForm = {
+                            name: '', description: '', price: 0, sale_price: 0,
+                            category: 'ebook', type: 'digital', stock: 0, weight: 0,
+                            status: 'active', featured: false, image_url: '', file_url: '', youtube_url: ''
+                        };
+                    }
+                    this.productImageFile = null;
+                    this.productImagePreview = null;
+                    this.productDigitalFile = null;
+                    this.productFileName = null;
+                    this.showProductModal = true;
+                    this.$nextTick(() => lucide.createIcons());
+                },
+
+                closeProductModal() {
+                    this.showProductModal = false;
+                    this.editingProduct = null;
+                },
+
+                handleProductImage(event) {
+                    const file = event.target.files[0];
+                    if (file) {
+                        this.productImageFile = file;
+                        this.productImagePreview = URL.createObjectURL(file);
+                    }
+                },
+
+                handleProductFile(event) {
+                    const file = event.target.files[0];
+                    if (file) {
+                        this.productFileName = file.name;
+                        this.productDigitalFile = file;
+                    }
+                },
+
+                async saveProduct() {
+                    this.savingProduct = true;
+
+                    try {
+                        let imageUrl = this.productForm.image_url;
+                        let fileUrl = this.productForm.file_url;
+
+                        // Upload image if new file selected
+                        if (this.productImageFile && this.productImageFile.type.startsWith('image/')) {
+                            const fileExt = this.productImageFile.name.split('.').pop();
+                            const fileName = `product-${Date.now()}.${fileExt}`;
+
+                            const { error: uploadError } = await supabase
+                                .storage
+                                .from('product-images')
+                                .upload(fileName, this.productImageFile);
+
+                            if (uploadError) throw uploadError;
+
+                            const { data: { publicUrl } } = supabase
+                                .storage
+                                .from('product-images')
+                                .getPublicUrl(fileName);
+
+                            imageUrl = publicUrl;
+                        }
+
+                        // Upload digital file if selected (hanya jika tidak ada link manual)
+                        if (!fileUrl && this.productDigitalFile) {
+                            const fileExt = this.productDigitalFile.name.split('.').pop();
+                            const fileName = `file-${Date.now()}.${fileExt}`;
+
+                            const { error: uploadError } = await supabase
+                                .storage
+                                .from('product-files')
+                                .upload(fileName, this.productDigitalFile);
+
+                            if (uploadError) throw uploadError;
+
+                            fileUrl = fileName;
+                        }
+
+                        const productData = {
+                            ...this.productForm,
+                            image_url: imageUrl,
+                            file_url: fileUrl,
+                            updated_at: new Date().toISOString()
+                        };
+
+                        if (this.editingProduct) {
+                            // Update existing
+                            const { error } = await supabase
+                                .from('products')
+                                .update(productData)
+                                .eq('id', this.editingProduct.id);
+
+                            if (error) throw error;
+                            this.showToast('Produk berhasil diupdate');
+                        } else {
+                            // Create new
+                            const { error } = await supabase
+                                .from('products')
+                                .insert([productData]);
+
+                            if (error) throw error;
+                            this.showToast('Produk berhasil ditambahkan');
+                        }
+
+                        this.closeProductModal();
+                        await this.loadProducts();
+                        await this.loadDashboardStats();
+                    } catch (error) {
+                        console.error('Error saving product:', error);
+                        this.showToast('Gagal menyimpan produk', 'error');
+                    }
+
+                    this.savingProduct = false;
+                },
+
+                async deleteProduct(product) {
+                    if (!confirm(`Hapus produk "${product.name}"?`)) return;
+
+                    const { error } = await supabase
+                        .from('products')
+                        .delete()
+                        .eq('id', product.id);
+
+                    if (error) {
+                        this.showToast('Gagal menghapus produk', 'error');
+                    } else {
+                        this.showToast('Produk berhasil dihapus');
+                        await this.loadProducts();
+                        await this.loadDashboardStats();
+                    }
+                },
+
+                async toggleProductStatus(product) {
+                    const newStatus = product.status === 'active' ? 'draft' : 'active';
+                    const { error } = await supabase
+                        .from('products')
+                        .update({ status: newStatus })
+                        .eq('id', product.id);
+
+                    if (error) {
+                        this.showToast('Gagal mengubah status', 'error');
+                    } else {
+                        product.status = newStatus;
+                        this.showToast(`Status produk diubah ke ${newStatus}`);
+                    }
+                },
+
+                // Order Detail Modal
+                showOrderDetailModal(order) {
+                    this.selectedOrder = order;
+                    this.trackingNumber = order.tracking_number || '';
+                    this.showOrderDetail = true;
+                    this.$nextTick(() => lucide.createIcons());
+                },
+
+                closeOrderDetail() {
+                    this.showOrderDetail = false;
+                    this.selectedOrder = null;
+                    this.trackingNumber = '';
+                },
+
+                async updateOrderStatus(newStatus) {
+                    this.updatingOrder = true;
+
+                    const updateData = {
+                        status: newStatus,
+                        updated_at: new Date().toISOString()
+                    };
+
+                    if (newStatus === 'shipped' && this.trackingNumber) {
+                        updateData.tracking_number = this.trackingNumber;
+                    }
+
+                    const { error } = await supabase
+                        .from('orders')
+                        .update(updateData)
+                        .eq('id', this.selectedOrder.id);
+
+                    if (error) {
+                        console.error('Error updating order:', error);
+                        this.showToast('Gagal mengupdate pesanan', 'error');
+                    } else {
+                        this.selectedOrder.status = newStatus;
+                        if (this.trackingNumber) {
+                            this.selectedOrder.tracking_number = this.trackingNumber;
+                        }
+                        await this.loadOrders();
+                        this.showToast('Status pesanan diupdate');
+                        this.closeOrderDetail();
+                    }
+
+                    this.updatingOrder = false;
+                },
+
+                // Settings
+                handleQrisUpload(event) {
+                    const file = event.target.files[0];
+                    if (file) {
+                        this.qrisFile = file;
+                        this.qrisPreview = URL.createObjectURL(file);
+                    }
+                },
+
+                handleOwnerAvatarUpload(event) {
+                    const file = event.target.files[0];
+                    if (file) {
+                        this.ownerAvatarFile = file;
+                        this.ownerAvatarPreview = URL.createObjectURL(file);
+                    }
+                },
+
+                async saveSettings() {
+                    this.savingSettings = true;
+
+                    try {
+                        let qrisUrl = this.settingsForm.qris_image_url;
+                        let ownerAvatarUrl = this.settingsForm.owner_avatar_url;
+
+                        if (this.qrisFile) {
+                            const fileExt = this.qrisFile.name.split('.').pop();
+                            const fileName = `qris-${Date.now()}.${fileExt}`;
+
+                            const { error: uploadError } = await supabase
+                                .storage
+                                .from('store-assets')
+                                .upload(fileName, this.qrisFile);
+
+                            if (uploadError) throw uploadError;
+
+                            const { data: { publicUrl } } = supabase
+                                .storage
+                                .from('store-assets')
+                                .getPublicUrl(fileName);
+
+                            qrisUrl = publicUrl;
+                        }
+
+                        if (this.ownerAvatarFile) {
+                            const fileExt = this.ownerAvatarFile.name.split('.').pop();
+                            const fileName = `avatar-${Date.now()}.${fileExt}`;
+
+                            const { error: uploadError } = await supabase
+                                .storage
+                                .from('store-assets')
+                                .upload(fileName, this.ownerAvatarFile);
+
+                            if (uploadError) throw uploadError;
+
+                            const { data: { publicUrl } } = supabase
+                                .storage
+                                .from('store-assets')
+                                .getPublicUrl(fileName);
+
+                            ownerAvatarUrl = publicUrl;
+                        }
+
+                        const { error } = await supabase
+                            .from('store_settings')
+                            .update({
+                                ...this.settingsForm,
+                                qris_image_url: qrisUrl,
+                                owner_avatar_url: ownerAvatarUrl,
+                                updated_at: new Date().toISOString()
+                            })
+                            .eq('id', 1);
+
+                        if (error) throw error;
+
+                        this.settingsForm.qris_image_url = qrisUrl;
+                        this.settingsForm.owner_avatar_url = ownerAvatarUrl;
+                        this.qrisFile = null;
+                        this.ownerAvatarFile = null;
+                        this.showToast('Pengaturan berhasil disimpan');
+                    } catch (error) {
+                        console.error('Error saving settings:', error);
+                        this.showToast('Gagal menyimpan pengaturan', 'error');
+                    }
+
+                    this.savingSettings = false;
+                },
+
+                async logout() {
+                    await supabase.auth.signOut();
+                    window.location.href = 'index.html';
+                },
+
+                // Helpers
+                formatPrice(price) {
+                    return new Intl.NumberFormat('id-ID', {
+                        style: 'currency',
+                        currency: 'IDR',
+                        minimumFractionDigits: 0
+                    }).format(price || 0);
+                },
+
+                formatCompactPrice(price) {
+                    if (price >= 1000000) return 'Rp ' + (price / 1000000).toFixed(1) + 'M';
+                    if (price >= 1000) return 'Rp ' + (price / 1000).toFixed(0) + 'K';
+                    return this.formatPrice(price);
+                },
+
+                formatDate(dateString) {
+                    if (!dateString) return '-';
+                    const date = new Date(dateString);
+                    return date.toLocaleDateString('id-ID', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric'
+                    });
+                },
+
+                getStatusBadgeClass(status) {
+                    const classes = {
+                        'pending': 'bg-yellow-100 text-yellow-700',
+                        'confirmed': 'bg-blue-100 text-blue-700',
+                        'processing': 'bg-indigo-100 text-indigo-700',
+                        'shipped': 'bg-cyan-100 text-cyan-700',
+                        'completed': 'bg-green-100 text-green-700',
+                        'cancelled': 'bg-red-100 text-red-700'
+                    };
+                    return classes[status] || 'bg-gray-100 text-gray-700';
+                },
+
+                getStatusLabel(status) {
+                    const labels = {
+                        'pending': 'Menunggu',
+                        'confirmed': 'Dikonfirmasi',
+                        'processing': 'Diproses',
+                        'shipped': 'Dikirim',
+                        'completed': 'Selesai',
+                        'cancelled': 'Dibatalkan'
+                    };
+                    return labels[status] || status;
+                },
+
+                // Watch for section changes to render charts
+                initWatchers() {
+                    this.$watch('currentSection', (value) => {
+                        if (value === 'dashboard') {
+                            this.$nextTick(() => {
+                                this.renderCharts();
+                            });
+                        }
+                    });
+                },
+
+                showToast(message, type = 'success') {
+                    window.dispatchEvent(new CustomEvent('show-toast', {
+                        detail: { message, type }
+                    }));
+                }
+            }
+        }
+    </script>
+
+    <!-- Initialize Lucide Icons -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            lucide.createIcons();
+        });
+    </script>
+</body>
+
+</html>

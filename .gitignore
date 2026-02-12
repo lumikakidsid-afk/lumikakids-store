@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+
+# Windows reserved file
+nul
+
+# Environment
+.env
+.env.local
+.env.production
+
+# Vercel
+.vercel/
+
+# OS
+.DS_Store
+Thumbs.db

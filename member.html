@@ -1,0 +1,1042 @@
+<!--
+    SETUP INSTRUCTIONS:
+    1. Buat project di https://supabase.com
+    2. Buka SQL Editor, copy-paste isi file setup-database.sql, jalankan
+    3. Buat Storage Buckets:
+       - "product-images" (public)
+       - "product-files" (private)
+       - "payment-proofs" (private)
+       - "store-assets" (public)
+    4. Di bawah, ganti SUPABASE_URL dan SUPABASE_ANON_KEY dengan milikmu
+       (Settings -> API -> Project URL dan anon/public key)
+    5. Untuk membuat admin pertama:
+       - Register akun via storefront
+       - Buka Supabase Dashboard -> Table Editor -> profiles
+       - Ubah role dari 'member' ke 'admin'
+    6. Buka index.html di browser untuk mulai!
+-->
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Area Member - Creative Maven</title>
+
+    <!-- Google Fonts - Work Sans -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <!-- ============================================ -->
+    <!-- FACEBOOK PIXEL & GOOGLE ANALYTICS CONFIG -->
+    <!-- ============================================ -->
+    <!-- Facebook Pixel Code (SDK load only, init dilakukan setelah load settings dari DB) -->
+    <script>
+        !function (f, b, e, v, n, t, s) {
+            if (f.fbq) return; n = f.fbq = function () {
+                n.callMethod ?
+                    n.callMethod.apply(n, arguments) : n.queue.push(arguments)
+            };
+            if (!f._fbq) f._fbq = n; n.push = n; n.loaded = !0; n.version = '2.0';
+            n.queue = []; t = b.createElement(e); t.async = !0;
+            t.src = v; s = b.getElementsByTagName(e)[0];
+            s.parentNode.insertBefore(t, s)
+        }(window, document, 'script',
+            'https://connect.facebook.net/en_US/fbevents.js');
+    </script>
+
+    <!-- Google Analytics 4 (SDK load only, config dilakukan setelah load settings dari DB) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-PLACEHOLDER"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag() { dataLayer.push(arguments); }
+        gtag('js', new Date());
+    </script>
+
+    <!-- Tracking Helper Functions -->
+    <script>
+        function trackFacebook(eventName, params = {}) {
+            if (typeof fbq !== 'undefined' && window._fbPixelInitialized) {
+                fbq('track', eventName, params);
+            }
+        }
+        function trackGA4(eventName, params = {}) {
+            if (typeof gtag !== 'undefined' && window._ga4Id) {
+                gtag('event', eventName, { ...params, send_to: window._ga4Id });
+            }
+        }
+    </script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Work Sans', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: '#FDB03D',
+                        secondary: '#F97316',
+                        background: '#F6F6F6',
+                        surface: '#FFFFFF',
+                        text: '#333333',
+                        muted: '#6B7280',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            font-family: 'Work Sans', sans-serif;
+            background-color: #F6F6F6;
+            color: #333333;
+        }
+
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        /* Modal animations */
+        .modal-enter {
+            opacity: 0;
+        }
+
+        .modal-enter-active {
+            opacity: 1;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-content-enter {
+            opacity: 0;
+            transform: scale(0.95) translateY(10px);
+        }
+
+        .modal-content-enter-active {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+            transition: all 0.3s ease;
+        }
+    </style>
+</head>
+
+<body x-data="memberApp()" x-init="init()" class="min-h-screen">
+    <!-- Auth Check Loading -->
+    <div x-show="isLoading" class="fixed inset-0 bg-background z-50 flex items-center justify-center">
+        <div class="text-center">
+            <div class="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
+            <p class="mt-4 text-muted text-sm">Memuat...</p>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div x-show="!isLoading" class="max-w-[480px] mx-auto bg-background min-h-screen shadow-lg">
+
+        <!-- Header (Sticky) -->
+        <header class="sticky top-0 z-40 bg-white px-4 py-3 shadow-sm">
+            <div class="flex items-center justify-between">
+                <a href="index.html" class="flex items-center gap-2 text-text hover:text-primary transition-colors">
+                    <i data-lucide="arrow-left" class="w-5 h-5"></i>
+                </a>
+                <h1 class="text-lg font-bold">Area Member</h1>
+                <div class="flex items-center gap-2">
+                    <button class="p-2 hover:bg-gray-100 rounded-lg relative">
+                        <i data-lucide="bell" class="w-5 h-5"></i>
+                        <span class="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+                    </button>
+                    <button @click="logout()" class="p-2 hover:bg-gray-100 rounded-lg text-red-500">
+                        <i data-lucide="log-out" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- User Card -->
+        <div class="px-4 py-4">
+            <div class="bg-gradient-to-r from-primary to-secondary rounded-2xl p-5 text-white shadow-lg">
+                <div class="flex items-center gap-4">
+                    <div class="relative">
+                        <img :src="profile?.avatar_url || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(profile?.full_name || 'User') + '&background=fff&color=F97316'"
+                            alt="Avatar" class="w-16 h-16 rounded-full border-3 border-white/30 object-cover">
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="font-semibold text-lg truncate" x-text="profile?.full_name || 'Member'"></p>
+                        <p class="text-white/80 text-sm">Premium Member</p>
+                    </div>
+                </div>
+                <div class="flex gap-6 mt-5">
+                    <div class="text-center">
+                        <p class="text-2xl font-bold" x-text="purchasedProducts.length"></p>
+                        <p class="text-white/80 text-xs">Produk</p>
+                    </div>
+                    <div class="text-center">
+                        <p class="text-2xl font-bold" x-text="orders.length"></p>
+                        <p class="text-white/80 text-xs">Pesanan</p>
+                    </div>
+                    <div class="text-center">
+                        <p class="text-2xl font-bold" x-text="formatCompactNumber(totalSpending)"></p>
+                        <p class="text-white/80 text-xs">Belanja</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="px-4 mb-4">
+            <div class="bg-white rounded-full p-1 flex shadow-sm">
+                <button @click="currentTab = 'products'"
+                    :class="currentTab === 'products' ? 'bg-primary text-text font-semibold' : 'text-gray-500 hover:text-gray-700'"
+                    class="flex-1 py-2.5 px-3 rounded-full text-sm transition-all flex items-center justify-center gap-1.5">
+                    <i data-lucide="package" class="w-4 h-4"></i>
+                    Produk Saya
+                </button>
+                <button @click="currentTab = 'orders'"
+                    :class="currentTab === 'orders' ? 'bg-primary text-text font-semibold' : 'text-gray-500 hover:text-gray-700'"
+                    class="flex-1 py-2.5 px-3 rounded-full text-sm transition-all flex items-center justify-center gap-1.5">
+                    <i data-lucide="shopping-bag" class="w-4 h-4"></i>
+                    Pesanan
+                </button>
+                <button @click="currentTab = 'profile'"
+                    :class="currentTab === 'profile' ? 'bg-primary text-text font-semibold' : 'text-gray-500 hover:text-gray-700'"
+                    class="flex-1 py-2.5 px-3 rounded-full text-sm transition-all flex items-center justify-center gap-1.5">
+                    <i data-lucide="user" class="w-4 h-4"></i>
+                    Profil
+                </button>
+            </div>
+        </div>
+
+        <!-- Tab: Produk Saya -->
+        <div x-show="currentTab === 'products'" x-transition class="px-4 pb-8">
+            <!-- Loading State -->
+            <div x-show="loadingProducts" class="text-center py-12">
+                <div class="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto">
+                </div>
+                <p class="mt-3 text-muted text-sm">Memuat produk...</p>
+            </div>
+
+            <!-- Empty State -->
+            <div x-show="!loadingProducts && purchasedProducts.length === 0" class="text-center py-12">
+                <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i data-lucide="package-open" class="w-10 h-10 text-gray-400"></i>
+                </div>
+                <h3 class="font-semibold text-gray-700 mb-1">Belum ada produk</h3>
+                <p class="text-muted text-sm mb-4">Anda belum memiliki produk digital</p>
+                <a href="index.html"
+                    class="inline-flex items-center gap-2 bg-primary text-text font-semibold py-2.5 px-6 rounded-full hover:bg-primary/90 transition-colors">
+                    <i data-lucide="shopping-cart" class="w-4 h-4"></i>
+                    Mulai Belanja
+                </a>
+            </div>
+
+            <!-- Products Grid -->
+            <div x-show="!loadingProducts && purchasedProducts.length > 0" class="grid grid-cols-1 gap-4">
+                <template x-for="product in purchasedProducts" :key="product.id">
+                    <div
+                        class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow">
+                        <div class="relative">
+                            <img :src="product.image_url || 'https://via.placeholder.com/400x200?text=No+Image'"
+                                :alt="product.product_name" class="w-full h-40 object-cover">
+                            <span
+                                class="absolute top-3 left-3 px-2.5 py-1 bg-white/90 backdrop-blur-sm rounded-full text-xs font-medium capitalize"
+                                :class="{
+                                      'text-blue-600': product.product_type === 'ebook',
+                                      'text-purple-600': product.product_type === 'video',
+                                      'text-green-600': product.product_type === 'template'
+                                  }" x-text="product.product_type">
+                            </span>
+                        </div>
+                        <div class="p-4">
+                            <h3 class="font-semibold text-gray-800 mb-3" x-text="product.product_name"></h3>
+
+                            <div class="flex gap-2">
+                                <button x-show="product.file_url" @click="downloadFile(product)"
+                                    :disabled="downloadingProduct === product.id"
+                                    class="flex-1 bg-primary text-text font-semibold py-2.5 rounded-full hover:bg-primary/90 transition-colors flex items-center justify-center gap-2">
+                                    <i x-show="downloadingProduct !== product.id" data-lucide="download"
+                                        class="w-4 h-4"></i>
+                                    <div x-show="downloadingProduct === product.id"
+                                        class="w-4 h-4 border-2 border-text border-t-transparent rounded-full animate-spin">
+                                    </div>
+                                    <span x-text="downloadingProduct === product.id ? 'Memuat...' : 'Download'"></span>
+                                </button>
+                                <button x-show="product.youtube_url"
+                                    @click="openVideo(getYouTubeEmbedUrl(product.youtube_url) || product.youtube_url)"
+                                    class="flex-1 bg-secondary text-white font-semibold py-2.5 rounded-full hover:bg-secondary/90 transition-colors flex items-center justify-center gap-2">
+                                    <i data-lucide="play" class="w-4 h-4"></i>
+                                    Tonton
+                                </button>
+                            </div>
+                            <p x-show="!product.file_url && !product.youtube_url"
+                                class="text-sm text-muted text-center py-2">
+                                File sedang disiapkan oleh penjual
+                            </p>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- Tab: Pesanan -->
+        <div x-show="currentTab === 'orders'" x-transition class="px-4 pb-8">
+            <!-- Loading State -->
+            <div x-show="loadingOrders" class="text-center py-12">
+                <div class="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto">
+                </div>
+                <p class="mt-3 text-muted text-sm">Memuat pesanan...</p>
+            </div>
+
+            <!-- Empty State -->
+            <div x-show="!loadingOrders && orders.length === 0" class="text-center py-12">
+                <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i data-lucide="shopping-bag" class="w-10 h-10 text-gray-400"></i>
+                </div>
+                <h3 class="font-semibold text-gray-700 mb-1">Belum ada pesanan</h3>
+                <p class="text-muted text-sm mb-4">Anda belum membuat pesanan apapun</p>
+                <a href="index.html"
+                    class="inline-flex items-center gap-2 bg-primary text-text font-semibold py-2.5 px-6 rounded-full hover:bg-primary/90 transition-colors">
+                    <i data-lucide="store" class="w-4 h-4"></i>
+                    Ke Toko
+                </a>
+            </div>
+
+            <!-- Orders List -->
+            <div x-show="!loadingOrders && orders.length > 0" class="space-y-3">
+                <template x-for="order in orders" :key="order.id">
+                    <div @click="showOrderDetailModal(order)"
+                        class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 cursor-pointer hover:shadow-md transition-shadow">
+                        <div class="flex items-start justify-between mb-3">
+                            <div>
+                                <p class="font-semibold text-gray-800" x-text="order.order_number"></p>
+                                <p class="text-xs text-muted" x-text="formatDate(order.created_at)"></p>
+                            </div>
+                            <span :class="getStatusBadgeClass(order.status)"
+                                class="px-2.5 py-1 rounded-full text-xs font-medium capitalize"
+                                x-text="getStatusLabel(order.status)">
+                            </span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <p class="text-sm text-muted">
+                                <span x-text="order.item_count || 1"></span> item
+                            </p>
+                            <p class="font-bold text-primary" x-text="formatPrice(order.total_amount)"></p>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- Tab: Profil -->
+        <div x-show="currentTab === 'profile'" x-transition class="px-4 pb-8">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                <div class="flex items-center justify-between mb-5">
+                    <h2 class="font-bold text-lg">Informasi Profil</h2>
+                    <button @click="toggleEdit()"
+                        :class="isEditing ? 'bg-gray-100 text-gray-700' : 'bg-primary/10 text-primary'"
+                        class="px-4 py-2 rounded-full text-sm font-medium flex items-center gap-2 transition-colors">
+                        <i :data-lucide="isEditing ? 'x' : 'edit-2'" class="w-4 h-4"></i>
+                        <span x-text="isEditing ? 'Batal' : 'Edit'"></span>
+                    </button>
+                </div>
+
+                <form @submit.prevent="saveProfile()" class="space-y-4">
+                    <!-- Nama Lengkap -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1.5">Nama Lengkap</label>
+                        <input type="text" x-model="profileForm.full_name" :disabled="!isEditing"
+                            class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:bg-gray-100 disabled:text-gray-500 transition-all">
+                    </div>
+
+                    <!-- Email -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
+                        <input type="email" :value="user?.email" disabled
+                            class="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-xl text-gray-500 cursor-not-allowed">
+                    </div>
+
+                    <!-- No. WhatsApp -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1.5">No. WhatsApp</label>
+                        <input type="tel" x-model="profileForm.phone" :disabled="!isEditing"
+                            placeholder="Contoh: 08123456789"
+                            class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:bg-gray-100 disabled:text-gray-500 transition-all">
+                    </div>
+
+                    <!-- Alamat -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1.5">Alamat</label>
+                        <textarea x-model="profileForm.address" :disabled="!isEditing" rows="3"
+                            placeholder="Alamat lengkap pengiriman"
+                            class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:bg-gray-100 disabled:text-gray-500 transition-all resize-none"></textarea>
+                    </div>
+
+                    <!-- Kota -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1.5">Kota</label>
+                        <input type="text" x-model="profileForm.city" :disabled="!isEditing"
+                            placeholder="Contoh: Jakarta"
+                            class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:bg-gray-100 disabled:text-gray-500 transition-all">
+                    </div>
+
+                    <!-- Save Button -->
+                    <button x-show="isEditing" type="submit" :disabled="savingProfile"
+                        class="w-full bg-primary text-text font-semibold py-3 rounded-full hover:bg-primary/90 transition-colors flex items-center justify-center gap-2">
+                        <div x-show="savingProfile"
+                            class="w-5 h-5 border-2 border-text border-t-transparent rounded-full animate-spin"></div>
+                        <i x-show="!savingProfile" data-lucide="save" class="w-5 h-5"></i>
+                        <span x-text="savingProfile ? 'Menyimpan...' : 'Simpan Perubahan'"></span>
+                    </button>
+                </form>
+            </div>
+
+            <!-- Account Info -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mt-4">
+                <h2 class="font-bold text-lg mb-4">Informasi Akun</h2>
+                <div class="space-y-3">
+                    <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                        <span class="text-muted text-sm">Bergabung</span>
+                        <span class="text-sm font-medium" x-text="formatDate(profile?.created_at)"></span>
+                    </div>
+                    <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                        <span class="text-muted text-sm">Role</span>
+                        <span class="text-sm font-medium capitalize" x-text="profile?.role || 'member'"></span>
+                    </div>
+                    <div class="flex justify-between items-center py-2">
+                        <span class="text-muted text-sm">User ID</span>
+                        <span class="text-sm font-mono text-xs" x-text="user?.id?.substring(0, 8) + '...'"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Spacing -->
+        <div class="h-8"></div>
+    </div>
+
+    <!-- Order Detail Modal -->
+    <div x-show="showOrderDetail" x-transition:enter="transition ease-out duration-200"
+        x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+        x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0" class="fixed inset-0 z-50" style="display: none;">
+
+        <!-- Backdrop -->
+        <div class="absolute inset-0 bg-black/50" @click="closeOrderDetail()"></div>
+
+        <!-- Modal Content -->
+        <div class="absolute inset-0 flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <div x-show="showOrderDetail" x-transition:enter="transition ease-out duration-300"
+                x-transition:enter-start="opacity-0 translate-y-full sm:translate-y-0 sm:scale-95"
+                x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+                x-transition:leave="transition ease-in duration-200"
+                x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+                x-transition:leave-end="opacity-0 translate-y-full sm:translate-y-0 sm:scale-95"
+                class="bg-white w-full max-w-[480px] max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl shadow-xl">
+
+                <!-- Modal Header -->
+                <div
+                    class="sticky top-0 bg-white px-5 py-4 border-b border-gray-100 flex items-center justify-between z-10">
+                    <div>
+                        <h2 class="text-lg font-bold" x-text="selectedOrder?.order_number"></h2>
+                        <p class="text-xs text-muted" x-text="formatDate(selectedOrder?.created_at)"></p>
+                    </div>
+                    <button @click="closeOrderDetail()" class="p-2 hover:bg-gray-100 rounded-lg">
+                        <i data-lucide="x" class="w-5 h-5 text-gray-500"></i>
+                    </button>
+                </div>
+
+                <!-- Modal Body -->
+                <div class="p-5 space-y-5">
+                    <!-- Status Badge -->
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm text-muted">Status Pesanan</span>
+                        <span :class="getStatusBadgeClass(selectedOrder?.status)"
+                            class="px-3 py-1.5 rounded-full text-sm font-medium capitalize"
+                            x-text="getStatusLabel(selectedOrder?.status)">
+                        </span>
+                    </div>
+
+                    <!-- Items List -->
+                    <div>
+                        <h3 class="font-semibold mb-3">Item Pesanan</h3>
+                        <div class="space-y-3" x-html="orderItemsHtml"></div>
+                    </div>
+
+                    <!-- Shipping Address (if physical) -->
+                    <div x-show="selectedOrder?.shipping_address">
+                        <h3 class="font-semibold mb-2">Alamat Pengiriman</h3>
+                        <div class="bg-gray-50 rounded-xl p-4">
+                            <p class="text-sm" x-text="selectedOrder?.shipping_address"></p>
+                            <p class="text-sm text-muted mt-1" x-text="selectedOrder?.shipping_city"></p>
+                        </div>
+                    </div>
+
+                    <!-- Tracking Number (if shipped) -->
+                    <div x-show="selectedOrder?.tracking_number">
+                        <h3 class="font-semibold mb-2">Nomor Resi</h3>
+                        <div class="bg-blue-50 rounded-xl p-4 flex items-center justify-between">
+                            <span class="text-sm font-mono text-blue-700"
+                                x-text="selectedOrder?.tracking_number"></span>
+                            <button @click="copyToClipboard(selectedOrder?.tracking_number)"
+                                class="text-blue-600 text-sm font-medium">
+                                Copy
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Payment Info -->
+                    <div>
+                        <h3 class="font-semibold mb-2">Pembayaran</h3>
+                        <div class="bg-gray-50 rounded-xl p-4 space-y-2">
+                            <div class="flex justify-between text-sm">
+                                <span class="text-muted">Metode</span>
+                                <span class="font-medium uppercase" x-text="selectedOrder?.payment_method"></span>
+                            </div>
+                            <div x-show="selectedOrder?.payment_method === 'transfer' && storeSettings?.bank_name"
+                                class="text-sm">
+                                <p class="text-muted mb-1">Transfer ke:</p>
+                                <p class="font-medium" x-text="storeSettings?.bank_name"></p>
+                                <p class="font-mono" x-text="storeSettings?.bank_account_number"></p>
+                                <p class="text-sm" x-text="storeSettings?.bank_account_name"></p>
+                            </div>
+                            <div x-show="selectedOrder?.payment_method === 'qris' && storeSettings?.qris_image_url"
+                                class="text-sm">
+                                <p class="text-muted mb-2">Scan QRIS:</p>
+                                <img :src="storeSettings?.qris_image_url" alt="QRIS"
+                                    class="w-48 mx-auto rounded-lg border border-gray-200">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Payment Proof (if exists) -->
+                    <div x-show="selectedOrder?.payment_proof_url">
+                        <h3 class="font-semibold mb-2">Bukti Pembayaran</h3>
+                        <img :src="selectedOrder?.payment_proof_url" alt="Bukti Pembayaran"
+                            class="w-full rounded-xl border border-gray-200">
+                    </div>
+
+                    <!-- Upload Payment Proof (if pending and no proof) -->
+                    <div x-show="selectedOrder?.status === 'pending' && !selectedOrder?.payment_proof_url">
+                        <h3 class="font-semibold mb-2">Upload Bukti Pembayaran</h3>
+                        <div class="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center hover:border-primary/50 transition-colors cursor-pointer"
+                            @click="$refs.paymentProofInput.click()">
+                            <input type="file" x-ref="paymentProofInput" @change="uploadPaymentProof($event)"
+                                accept="image/*" class="hidden">
+                            <i data-lucide="upload-cloud" class="w-10 h-10 text-gray-400 mx-auto mb-2"></i>
+                            <p class="text-sm text-gray-500">Klik untuk upload bukti pembayaran</p>
+                            <p class="text-xs text-gray-400 mt-1">JPG, PNG max 5MB</p>
+                        </div>
+                    </div>
+
+                    <!-- Total -->
+                    <div class="border-t border-gray-100 pt-4">
+                        <div class="flex justify-between items-center">
+                            <span class="font-semibold">Total</span>
+                            <span class="text-xl font-bold text-primary"
+                                x-text="formatPrice(selectedOrder?.total_amount)"></span>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="space-y-2">
+                        <!-- Confirm Received (if shipped) -->
+                        <button x-show="selectedOrder?.status === 'shipped'" @click="confirmReceived(selectedOrder?.id)"
+                            :disabled="updatingOrder"
+                            class="w-full bg-green-500 text-white font-semibold py-3 rounded-full hover:bg-green-600 transition-colors flex items-center justify-center gap-2">
+                            <i data-lucide="check-circle" class="w-5 h-5"></i>
+                            <span>Konfirmasi Pesanan Diterima</span>
+                        </button>
+
+                        <!-- Upload Payment Proof (if pending and no proof yet) -->
+                        <button x-show="selectedOrder?.status === 'pending' && !selectedOrder?.payment_proof_url"
+                            @click="$refs.paymentProofInput.click()"
+                            class="w-full bg-primary text-text font-semibold py-3 rounded-full hover:bg-primary/90 transition-colors flex items-center justify-center gap-2">
+                            <i data-lucide="upload-cloud" class="w-5 h-5"></i>
+                            <span>Upload Bukti Pembayaran</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div x-data="{ toasts: [] }"
+        x-on:show-toast.window="toasts.push({message: $event.detail.message, type: $event.detail.type || 'success', id: Date.now()}); setTimeout(() => toasts.shift(), 3000)"
+        class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] space-y-2 pointer-events-none">
+        <template x-for="toast in toasts" :key="toast.id">
+            <div x-transition
+                :class="toast.type === 'error' ? 'bg-red-500' : toast.type === 'warning' ? 'bg-yellow-500' : 'bg-green-500'"
+                class="text-white px-6 py-3 rounded-full shadow-lg text-sm font-medium pointer-events-auto">
+                <span x-text="toast.message"></span>
+            </div>
+        </template>
+    </div>
+
+    <!-- Supabase Config -->
+    <script>
+        // Supabase Configuration
+        const SUPABASE_URL = 'https://mluhcieuafqfzzzmubly.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1sdWhjaWV1YWZxZnp6em11Ymx5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA3ODEzNjMsImV4cCI6MjA4NjM1NzM2M30.SU_Ak-aWoX4pc0Ye4wr8rlwGtKHTKMqAYa-7x2IWnZE';
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        function memberApp() {
+            return {
+                // State
+                currentTab: 'products',
+                user: null,
+                profile: null,
+                purchasedProducts: [],
+                orders: [],
+                selectedOrder: null,
+                showOrderDetail: false,
+                profileForm: { full_name: '', phone: '', address: '', city: '' },
+                isEditing: false,
+                storeSettings: {},
+
+                // Loading states
+                isLoading: true,
+                loadingProducts: false,
+                loadingOrders: false,
+                savingProfile: false,
+                downloadingProduct: null,
+                updatingOrder: false,
+
+                // Computed
+                get totalSpending() {
+                    return this.orders
+                        .filter(o => ['completed', 'shipped'].includes(o.status))
+                        .reduce((sum, o) => sum + (o.total_amount || 0), 0);
+                },
+
+                get orderItemsHtml() {
+                    if (!this.selectedOrder?.items) return '';
+                    return this.selectedOrder.items.map(item => `
+                        <div class="flex items-center gap-3 bg-gray-50 rounded-xl p-3">
+                            <div class="w-14 h-14 bg-gray-200 rounded-lg flex items-center justify-center flex-shrink-0">
+                                <i data-lucide="package" class="w-6 h-6 text-gray-400"></i>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <p class="font-medium text-sm truncate">${item.product_name}</p>
+                                <p class="text-xs text-muted">${item.quantity} x ${this.formatPrice(item.price)}</p>
+                            </div>
+                            <p class="font-semibold text-sm">${this.formatPrice(item.price * item.quantity)}</p>
+                        </div>
+                    `).join('');
+                },
+
+                // Methods
+                async init() {
+                    // Check auth
+                    const { data: { session } } = await supabase.auth.getSession();
+                    if (!session) {
+                        window.location.href = 'index.html';
+                        return;
+                    }
+
+                    this.user = session.user;
+
+                    // Load all data
+                    await Promise.all([
+                        this.loadProfile(),
+                        this.loadStoreSettings(),
+                        this.loadOrders(),
+                        this.loadPurchasedProducts()
+                    ]);
+
+                    this.isLoading = false;
+
+                    // Initialize Lucide icons
+                    this.$nextTick(() => lucide.createIcons());
+                },
+
+                async loadProfile() {
+                    const { data, error } = await supabase
+                        .from('profiles')
+                        .select('*')
+                        .eq('id', this.user.id)
+                        .single();
+
+                    if (error) {
+                        console.error('Error loading profile:', error);
+                        return;
+                    }
+
+                    this.profile = data;
+                    this.profileForm = {
+                        full_name: data.full_name || '',
+                        phone: data.phone || '',
+                        address: data.address || '',
+                        city: data.city || ''
+                    };
+                },
+
+                async loadStoreSettings() {
+                    const { data, error } = await supabase
+                        .from('store_settings')
+                        .select('*')
+                        .single();
+
+                    if (error) {
+                        console.error('Error loading settings:', error);
+                        return;
+                    }
+
+                    this.storeSettings = data;
+                    this.initTracking();
+                },
+
+                initTracking() {
+                    const pixelId = this.storeSettings?.fb_pixel_id;
+                    const gaId = this.storeSettings?.ga4_measurement_id;
+
+                    // Init Facebook Pixel jika ID valid
+                    if (pixelId && pixelId !== '') {
+                        if (typeof fbq !== 'undefined') {
+                            fbq('init', pixelId);
+                            fbq('track', 'PageView');
+                            window._fbPixelInitialized = true;
+                        }
+                    }
+
+                    // Init GA4 jika ID valid
+                    if (gaId && gaId !== '') {
+                        const gaScript = document.querySelector('script[src*="gtag/js"]');
+                        if (gaScript) {
+                            gaScript.src = 'https://www.googletagmanager.com/gtag/js?id=' + gaId;
+                        }
+                        if (typeof gtag !== 'undefined') {
+                            gtag('config', gaId, { 'send_page_view': true });
+                        }
+                        window._ga4Id = gaId;
+                    }
+                },
+
+                async loadOrders() {
+                    this.loadingOrders = true;
+
+                    const { data, error } = await supabase
+                        .from('orders')
+                        .select(`
+                            *,
+                            items:order_items(*)
+                        `)
+                        .eq('user_id', this.user.id)
+                        .order('created_at', { ascending: false });
+
+                    if (error) {
+                        console.error('Error loading orders:', error);
+                        this.showToast('Gagal memuat pesanan', 'error');
+                    } else {
+                        // Add item count to each order
+                        this.orders = (data || []).map(order => ({
+                            ...order,
+                            item_count: order.items?.length || 0
+                        }));
+                    }
+
+                    this.loadingOrders = false;
+                },
+
+                async loadPurchasedProducts() {
+                    this.loadingProducts = true;
+
+                    // Get order_items from completed orders, join products for youtube_url & image_url
+                    const { data, error } = await supabase
+                        .from('order_items')
+                        .select(`
+                            *,
+                            order:orders!inner(status, user_id),
+                            product:products(youtube_url, image_url)
+                        `)
+                        .eq('order.status', 'completed')
+                        .eq('order.user_id', this.user.id);
+
+                    if (error) {
+                        console.error('Error loading purchased products:', error);
+                        this.showToast('Gagal memuat produk', 'error');
+                    } else {
+                        this.purchasedProducts = (data || []).map(item => ({
+                            ...item,
+                            youtube_url: item.product?.youtube_url || '',
+                            image_url: item.product?.image_url || item.image_url || ''
+                        }));
+                    }
+
+                    this.loadingProducts = false;
+                },
+
+                async downloadFile(product) {
+                    if (!product.file_url) {
+                        this.showToast('File tidak tersedia', 'error');
+                        return;
+                    }
+
+                    this.downloadingProduct = product.id;
+
+                    try {
+                        // If it's a direct URL, open it
+                        if (product.file_url.startsWith('http')) {
+                            window.open(product.file_url, '_blank');
+                        } else {
+                            // Generate signed URL from Supabase Storage
+                            const { data, error } = await supabase
+                                .storage
+                                .from('product-files')
+                                .createSignedUrl(product.file_url, 60);
+
+                            if (error) throw error;
+
+                            window.open(data.signedUrl, '_blank');
+                        }
+
+                        // Track download event
+                        trackFacebook('CustomEvent', { event_name: 'DownloadProduct', product_name: product.product_name, product_type: product.product_type });
+                        trackGA4('file_download', { file_name: product.product_name, file_extension: product.product_type });
+                        this.showToast('File siap diunduh');
+                    } catch (error) {
+                        console.error('Error downloading:', error);
+                        this.showToast('Gagal mengunduh file', 'error');
+                    }
+
+                    this.downloadingProduct = null;
+                },
+
+                openVideo(url) {
+                    if (url) {
+                        window.open(url, '_blank');
+                    }
+                },
+
+                toggleEdit() {
+                    this.isEditing = !this.isEditing;
+                    if (!this.isEditing) {
+                        // Reset form
+                        this.profileForm = {
+                            full_name: this.profile?.full_name || '',
+                            phone: this.profile?.phone || '',
+                            address: this.profile?.address || '',
+                            city: this.profile?.city || ''
+                        };
+                    }
+                    this.$nextTick(() => lucide.createIcons());
+                },
+
+                async saveProfile() {
+                    this.savingProfile = true;
+
+                    const { error } = await supabase
+                        .from('profiles')
+                        .update({
+                            full_name: this.profileForm.full_name,
+                            phone: this.profileForm.phone,
+                            address: this.profileForm.address,
+                            city: this.profileForm.city,
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('id', this.user.id);
+
+                    if (error) {
+                        console.error('Error saving profile:', error);
+                        this.showToast('Gagal menyimpan profil', 'error');
+                    } else {
+                        this.profile = { ...this.profile, ...this.profileForm };
+                        this.isEditing = false;
+                        this.showToast('Profil berhasil disimpan');
+                    }
+
+                    this.savingProfile = false;
+                },
+
+                showOrderDetailModal(order) {
+                    this.selectedOrder = order;
+                    this.showOrderDetail = true;
+                    this.$nextTick(() => lucide.createIcons());
+                },
+
+                closeOrderDetail() {
+                    this.showOrderDetail = false;
+                    this.selectedOrder = null;
+                },
+
+                async uploadPaymentProof(event) {
+                    const file = event.target.files[0];
+                    if (!file) return;
+
+                    if (file.size > 5 * 1024 * 1024) {
+                        this.showToast('File terlalu besar (max 5MB)', 'error');
+                        return;
+                    }
+
+                    this.showToast('Mengupload bukti pembayaran...', 'warning');
+
+                    const fileExt = file.name.split('.').pop();
+                    const fileName = `payment-${this.selectedOrder.order_number}-${Date.now()}.${fileExt}`;
+
+                    const { data: uploadData, error: uploadError } = await supabase
+                        .storage
+                        .from('payment-proofs')
+                        .upload(fileName, file);
+
+                    if (uploadError) {
+                        console.error('Upload error:', uploadError);
+                        this.showToast('Gagal upload file', 'error');
+                        return;
+                    }
+
+                    // Get public URL
+                    const { data: { publicUrl } } = supabase
+                        .storage
+                        .from('payment-proofs')
+                        .getPublicUrl(fileName);
+
+                    // Update order
+                    const { error: updateError } = await supabase
+                        .from('orders')
+                        .update({ payment_proof_url: publicUrl })
+                        .eq('id', this.selectedOrder.id);
+
+                    if (updateError) {
+                        console.error('Update error:', updateError);
+                        this.showToast('Gagal update order', 'error');
+                        return;
+                    }
+
+                    // Update local state
+                    this.selectedOrder.payment_proof_url = publicUrl;
+
+                    // Refresh orders list
+                    await this.loadOrders();
+
+                    this.showToast('Bukti pembayaran berhasil diupload');
+                    this.$nextTick(() => lucide.createIcons());
+                },
+
+                async confirmReceived(orderId) {
+                    if (!confirm('Konfirmasi bahwa pesanan sudah diterima?')) return;
+
+                    this.updatingOrder = true;
+
+                    const { error } = await supabase
+                        .from('orders')
+                        .update({ status: 'completed', updated_at: new Date().toISOString() })
+                        .eq('id', orderId);
+
+                    if (error) {
+                        console.error('Error updating order:', error);
+                        this.showToast('Gagal mengkonfirmasi', 'error');
+                    } else {
+                        this.selectedOrder.status = 'completed';
+                        await this.loadOrders();
+                        this.showToast('Pesanan berhasil dikonfirmasi');
+                    }
+
+                    this.updatingOrder = false;
+                },
+
+                async logout() {
+                    await supabase.auth.signOut();
+                    window.location.href = 'index.html';
+                },
+
+                // Helpers
+                formatPrice(price) {
+                    return new Intl.NumberFormat('id-ID', {
+                        style: 'currency',
+                        currency: 'IDR',
+                        minimumFractionDigits: 0
+                    }).format(price || 0);
+                },
+
+                formatCompactNumber(num) {
+                    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+                    if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+                    return this.formatPrice(num);
+                },
+
+                formatDate(dateString) {
+                    if (!dateString) return '-';
+                    const date = new Date(dateString);
+                    return date.toLocaleDateString('id-ID', {
+                        day: 'numeric',
+                        month: 'long',
+                        year: 'numeric'
+                    });
+                },
+
+                getStatusBadgeClass(status) {
+                    const classes = {
+                        'pending': 'bg-yellow-100 text-yellow-700',
+                        'confirmed': 'bg-blue-100 text-blue-700',
+                        'processing': 'bg-indigo-100 text-indigo-700',
+                        'shipped': 'bg-cyan-100 text-cyan-700',
+                        'completed': 'bg-green-100 text-green-700',
+                        'cancelled': 'bg-red-100 text-red-700'
+                    };
+                    return classes[status] || 'bg-gray-100 text-gray-700';
+                },
+
+                getStatusLabel(status) {
+                    const labels = {
+                        'pending': 'Menunggu',
+                        'confirmed': 'Dikonfirmasi',
+                        'processing': 'Diproses',
+                        'shipped': 'Dikirim',
+                        'completed': 'Selesai',
+                        'cancelled': 'Dibatalkan'
+                    };
+                    return labels[status] || status;
+                },
+
+                getYouTubeEmbedUrl(url) {
+                    if (!url) return null;
+                    let videoId = null;
+                    const shortMatch = url.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
+                    if (shortMatch) videoId = shortMatch[1];
+                    if (!videoId) { const watchMatch = url.match(/[?&]v=([a-zA-Z0-9_-]{11})/); if (watchMatch) videoId = watchMatch[1]; }
+                    if (!videoId) { const embedMatch = url.match(/embed\/([a-zA-Z0-9_-]{11})/); if (embedMatch) videoId = embedMatch[1]; }
+                    if (!videoId) { const shortsMatch = url.match(/shorts\/([a-zA-Z0-9_-]{11})/); if (shortsMatch) videoId = shortsMatch[1]; }
+                    return videoId ? 'https://www.youtube.com/embed/' + videoId : null;
+                },
+
+                copyToClipboard(text) {
+                    navigator.clipboard.writeText(text);
+                    this.showToast('Disalin ke clipboard!');
+                },
+
+                showToast(message, type = 'success') {
+                    window.dispatchEvent(new CustomEvent('show-toast', {
+                        detail: { message, type }
+                    }));
+                }
+            }
+        }
+    </script>
+
+    <!-- Initialize Lucide Icons -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            lucide.createIcons();
+        });
+    </script>
+</body>
+
+</html>

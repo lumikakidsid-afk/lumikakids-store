@@ -1,0 +1,1110 @@
+<!--
+    SETUP INSTRUCTIONS:
+    1. Buat project di https://supabase.com
+    2. Buka SQL Editor, copy-paste isi file setup-database.sql, jalankan
+    3. Buat Storage Buckets:
+       - "product-images" (public)
+       - "product-files" (private)
+       - "payment-proofs" (private)
+       - "store-assets" (public)
+    4. Di bawah, ganti SUPABASE_URL dan SUPABASE_ANON_KEY dengan milikmu
+       (Settings -> API -> Project URL dan anon/public key)
+    5. Untuk membuat admin pertama:
+       - Register akun via storefront
+       - Buka Supabase Dashboard -> Table Editor -> profiles
+       - Ubah role dari 'member' ke 'admin'
+    6. Buka index.html di browser untuk mulai!
+-->
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Creative Maven - Digital Products (LIVE)</title>
+
+    <!-- Google Fonts - Work Sans -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <!-- ============================================ -->
+    <!-- FACEBOOK PIXEL & GOOGLE ANALYTICS CONFIG -->
+    <!-- ============================================ -->
+    <!-- Facebook Pixel Code (SDK load only, init dilakukan setelah load settings dari DB) -->
+    <script>
+        !function (f, b, e, v, n, t, s) {
+            if (f.fbq) return; n = f.fbq = function () {
+                n.callMethod ?
+                    n.callMethod.apply(n, arguments) : n.queue.push(arguments)
+            };
+            if (!f._fbq) f._fbq = n; n.push = n; n.loaded = !0; n.version = '2.0';
+            n.queue = []; t = b.createElement(e); t.async = !0;
+            t.src = v; s = b.getElementsByTagName(e)[0];
+            s.parentNode.insertBefore(t, s)
+        }(window, document, 'script',
+            'https://connect.facebook.net/en_US/fbevents.js');
+    </script>
+
+    <!-- Google Analytics 4 (SDK load only, config dilakukan setelah load settings dari DB) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-PLACEHOLDER"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag() { dataLayer.push(arguments); }
+        gtag('js', new Date());
+    </script>
+
+    <!-- Tracking Helper Functions -->
+    <script>
+        // Facebook Pixel Helper
+        function trackFacebook(eventName, params = {}) {
+            if (typeof fbq !== 'undefined' && window._fbPixelInitialized) {
+                fbq('track', eventName, params);
+                console.log('[FB Pixel]', eventName, params);
+            }
+        }
+
+        function trackFacebookCustom(eventName, params = {}) {
+            if (typeof fbq !== 'undefined' && window._fbPixelInitialized) {
+                fbq('trackCustom', eventName, params);
+                console.log('[FB Pixel Custom]', eventName, params);
+            }
+        }
+
+        // Google Analytics 4 Helper
+        function trackGA4(eventName, params = {}) {
+            if (typeof gtag !== 'undefined' && window._ga4Id) {
+                gtag('event', eventName, {
+                    ...params,
+                    send_to: window._ga4Id
+                });
+                console.log('[GA4]', eventName, params);
+            }
+        }
+
+        // Track Page View untuk Alpine.js navigation
+        function trackPageView(pagePath, pageTitle) {
+            trackFacebook('PageView');
+            trackGA4('page_view', {
+                page_path: pagePath,
+                page_title: pageTitle
+            });
+        }
+    </script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Work Sans', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: '#FDB03D',
+                        secondary: '#F97316',
+                        background: '#F6F6F6',
+                        surface: '#FFFFFF',
+                        text: '#333333',
+                        muted: '#6B7280',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Prevent browser caching during development -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+
+    <style>
+        body {
+            font-family: 'Work Sans', sans-serif;
+            background-color: #F6F6F6;
+            color: #333333;
+        }
+
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        /* Prevent Alpine.js from permanently hiding content if init fails */
+        [x-cloak] {
+            display: none !important;
+        }
+    </style>
+</head>
+
+<body x-data="storefrontApp()" x-init="init()" class="min-h-screen">
+    <!-- Loading Overlay -->
+    <div x-show="isLoading" class="fixed inset-0 bg-background z-50 flex items-center justify-center">
+        <div class="text-center">
+            <div class="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
+            <p class="mt-4 text-muted text-sm">Memuat...</p>
+        </div>
+    </div>
+
+
+    <!-- Main Container -->
+    <div x-show="!isLoading" class="max-w-[480px] mx-auto bg-white min-h-screen shadow-lg relative">
+
+        <!-- ==================== HEADER ==================== -->
+        <nav class="sticky top-0 z-40 bg-white border-b border-gray-100 px-4 py-3">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+                        <i data-lucide="zap" class="w-5 h-5 text-white"></i>
+                    </div>
+                    <span class="font-semibold text-lg" x-text="storeSettings.store_name || 'Creative Maven'"></span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button @click="showSearch = !showSearch"
+                        class="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                        <i data-lucide="search" class="w-5 h-5"></i>
+                    </button>
+                    <button @click="showCart = true"
+                        class="p-2 hover:bg-gray-100 rounded-lg transition-colors relative">
+                        <i data-lucide="shopping-cart" class="w-5 h-5"></i>
+                        <span x-show="getCartCount() > 0" x-text="getCartCount()"
+                            class="absolute -top-1 -right-1 w-5 h-5 bg-primary text-text text-xs font-bold rounded-full flex items-center justify-center"></span>
+                    </button>
+                    <template x-if="!user">
+                        <button @click="showAuthModal = true; authMode = 'login'"
+                            class="px-3 py-1.5 bg-primary text-text text-sm font-medium rounded-full hover:bg-primary/90 transition-colors">Masuk</button>
+                    </template>
+                    <template x-if="user">
+                        <div class="relative" x-data="{ open: false }">
+                            <button @click="open = !open"
+                                class="flex items-center gap-2 p-1 hover:bg-gray-100 rounded-full transition-colors">
+                                <img :src="profile?.avatar_url || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(profile?.full_name || 'User') + '&background=FDB03D&color=333'"
+                                    class="w-7 h-7 rounded-full object-cover">
+                            </button>
+                            <div x-show="open" @click.away="open = false" x-transition
+                                class="absolute right-0 top-full mt-2 w-48 bg-white rounded-xl shadow-lg border border-gray-100 py-2 z-50">
+                                <div class="px-4 py-2 border-b border-gray-100">
+                                    <p class="font-medium text-sm truncate" x-text="profile?.full_name || 'Member'"></p>
+                                    <p class="text-xs text-muted truncate" x-text="user.email"></p>
+                                </div>
+                                <a href="member.html"
+                                    class="flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-50"><i
+                                        data-lucide="package" class="w-4 h-4"></i>Produk Saya</a>
+                                <a x-show="profile?.role === 'admin'" href="admin.html"
+                                    class="flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-50"><i
+                                        data-lucide="layout-dashboard" class="w-4 h-4"></i>Admin Panel</a>
+                                <button @click="logout()"
+                                    class="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-500 hover:bg-red-50"><i
+                                        data-lucide="log-out" class="w-4 h-4"></i>Keluar</button>
+                            </div>
+                        </div>
+                    </template>
+                    <button @click="showMobileMenu = !showMobileMenu"
+                        class="p-2 hover:bg-gray-100 rounded-lg transition-colors lg:hidden"><i data-lucide="menu"
+                            class="w-5 h-5"></i></button>
+                </div>
+            </div>
+            <div x-show="showSearch" x-transition class="mt-3">
+                <div class="relative">
+                    <i data-lucide="search" class="w-4 h-4 text-muted absolute left-3 top-1/2 -translate-y-1/2"></i>
+                    <input type="text" x-model="searchQuery" @input="filterProducts()" placeholder="Cari produk..."
+                        class="w-full pl-10 pr-4 py-2 bg-gray-100 border-0 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50">
+                </div>
+            </div>
+            <div x-show="showMobileMenu" x-transition class="mt-3 pt-3 border-t border-gray-100 space-y-1">
+                <a href="#" @click.prevent="currentPage = 'home'; showMobileMenu = false"
+                    class="block py-2 px-3 hover:bg-gray-50 rounded-lg">Beranda</a>
+                <a href="#products" @click.prevent="scrollToProducts(); showMobileMenu = false"
+                    class="block py-2 px-3 hover:bg-gray-50 rounded-lg">Produk</a>
+            </div>
+        </nav>
+
+        <!-- ==================== HOME PAGE ==================== -->
+        <div x-show="currentPage === 'home'" x-transition>
+            <div class="px-6 py-8 text-center">
+                <div class="relative inline-block">
+                    <img :src="storeSettings.owner_avatar_url || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop&crop=face'"
+                        alt="Creator Avatar"
+                        class="w-24 h-24 rounded-full object-cover border-4 border-primary/20 mx-auto">
+                    <div
+                        class="absolute bottom-0 right-0 w-7 h-7 bg-blue-500 rounded-full flex items-center justify-center border-2 border-white">
+                        <i data-lucide="check" class="w-4 h-4 text-white"></i>
+                    </div>
+                </div>
+                <h1 class="mt-4 text-xl font-bold flex items-center justify-center gap-2">
+                    <span x-text="storeSettings.store_name || 'Creative Maven'"></span>
+                    <span
+                        class="inline-flex items-center gap-1 bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full"><i
+                            data-lucide="badge-check" class="w-3 h-3"></i>Verified</span>
+                </h1>
+                <p class="text-muted text-sm mt-1"
+                    x-text="storeSettings.store_description || 'Digital Creator & Educator'"></p>
+                <div class="flex justify-center gap-8 mt-6">
+                    <div class="text-center">
+                        <p class="text-xl font-bold" x-text="products.length"></p>
+                        <p class="text-xs text-muted">Produk</p>
+                    </div>
+                    <div class="text-center">
+                        <p class="text-xl font-bold" x-text="customerCount"></p>
+                        <p class="text-xs text-muted">Customer</p>
+                    </div>
+                    <div class="text-center">
+                        <p class="text-xl font-bold">4.9</p>
+                        <p class="text-xs text-muted">Rating</p>
+                    </div>
+                </div>
+                <div class="flex gap-3 mt-6">
+                    <a :href="storeSettings.whatsapp_number ? 'https://wa.me/' + storeSettings.whatsapp_number : '#'"
+                        target="_blank"
+                        class="flex-1 bg-primary text-text font-semibold py-3 px-6 rounded-full hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"><i
+                            data-lucide="message-circle" class="w-5 h-5"></i>Konsultasi</a>
+                    <button @click="user ? showToast('Terima kasih sudah subscribe!') : (showAuthModal = true)"
+                        class="flex-1 bg-white border-2 border-gray-200 text-text font-semibold py-3 px-6 rounded-full hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"><i
+                            data-lucide="bell" class="w-5 h-5"></i>Subscribe</button>
+                </div>
+            </div>
+
+            <div class="px-4 pb-8">
+                <div class="flex overflow-x-auto hide-scrollbar gap-2 mb-6 pb-2">
+                    <button @click="selectedCategory = 'all'; filterProducts()"
+                        :class="selectedCategory === 'all' ? 'bg-primary text-text' : 'bg-white text-gray-600 border border-gray-200'"
+                        class="px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors">Semua</button>
+                    <button @click="selectedCategory = 'ebook'; filterProducts()"
+                        :class="selectedCategory === 'ebook' ? 'bg-primary text-text' : 'bg-white text-gray-600 border border-gray-200'"
+                        class="px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors">Ebook</button>
+                    <button @click="selectedCategory = 'video'; filterProducts()"
+                        :class="selectedCategory === 'video' ? 'bg-primary text-text' : 'bg-white text-gray-600 border border-gray-200'"
+                        class="px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors">Video</button>
+                    <button @click="selectedCategory = 'template'; filterProducts()"
+                        :class="selectedCategory === 'template' ? 'bg-primary text-text' : 'bg-white text-gray-600 border border-gray-200'"
+                        class="px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors">Template</button>
+                    <button @click="selectedCategory = 'workshop'; filterProducts()"
+                        :class="selectedCategory === 'workshop' ? 'bg-primary text-text' : 'bg-white text-gray-600 border border-gray-200'"
+                        class="px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors">Workshop</button>
+                    <button @click="selectedCategory = 'fisik'; filterProducts()"
+                        :class="selectedCategory === 'fisik' ? 'bg-primary text-text' : 'bg-white text-gray-600 border border-gray-200'"
+                        class="px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors">Produk
+                        Fisik</button>
+                </div>
+
+                <div class="mb-6" x-show="featuredProducts.length > 0">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="font-bold text-lg">Populer</h2>
+                    </div>
+                    <div class="flex gap-4 overflow-x-auto hide-scrollbar pb-2">
+                        <template x-for="product in featuredProducts" :key="product.id">
+                            <div @click="openProductDetail(product)"
+                                class="flex-shrink-0 w-40 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow cursor-pointer">
+                                <img :src="product.image_url || 'https://via.placeholder.com/400x300?text=No+Image'"
+                                    :alt="product.name" class="w-full h-28 object-cover">
+                                <div class="p-3">
+                                    <p class="text-xs text-muted mb-1 capitalize" x-text="product.category"></p>
+                                    <h3 class="font-semibold text-sm line-clamp-2" x-text="product.name"></h3>
+                                    <p class="text-primary font-bold text-sm mt-1"
+                                        x-text="formatPrice(product.sale_price || product.price)"></p>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <div id="products">
+                    <h2 class="font-bold text-lg mb-4">Semua Produk</h2>
+                    <div x-show="filteredProducts.length === 0" class="text-center py-12">
+                        <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4"><i
+                                data-lucide="package-open" class="w-10 h-10 text-gray-400"></i></div>
+                        <h3 class="font-semibold text-gray-700">Tidak ada produk</h3>
+                        <p class="text-muted text-sm">Produk tidak ditemukan</p>
+                    </div>
+                    <div class="space-y-3">
+                        <template x-for="product in filteredProducts" :key="product.id">
+                            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-3 flex gap-4 hover:shadow-md transition-shadow cursor-pointer"
+                                @click="openProductDetail(product)">
+                                <img :src="product.image_url || 'https://via.placeholder.com/200?text=No+Image'"
+                                    :alt="product.name" class="w-20 h-20 rounded-lg object-cover flex-shrink-0">
+                                <div class="flex-1 py-1">
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <span class="text-xs px-2 py-0.5 bg-gray-100 rounded-full capitalize"
+                                            x-text="product.category"></span>
+                                        <span x-show="product.type === 'physical'"
+                                            class="text-xs px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full">Fisik</span>
+                                    </div>
+                                    <h3 class="font-semibold text-sm line-clamp-2 mb-2" x-text="product.name"></h3>
+                                    <div class="flex items-center gap-2">
+                                        <span x-show="product.sale_price > 0 && product.sale_price < product.price"
+                                            class="text-gray-400 text-sm line-through"
+                                            x-text="formatPrice(product.price)"></span>
+                                        <span class="text-primary font-bold"
+                                            x-text="formatPrice(product.sale_price || product.price)"></span>
+                                        <span x-show="product.sale_price > 0 && product.sale_price < product.price"
+                                            class="text-xs px-1.5 py-0.5 bg-red-100 text-red-600 rounded"
+                                            x-text="'-' + getDiscountPercent(product.price, product.sale_price) + '%'"></span>
+                                    </div>
+                                </div>
+                                <button @click.stop="addToCart(product)"
+                                    :disabled="product.type === 'physical' && product.stock <= 0"
+                                    :class="product.type === 'physical' && product.stock <= 0 ? 'bg-gray-100 text-gray-400' : 'bg-primary/10 text-primary hover:bg-primary/20'"
+                                    class="self-center p-2 rounded-full transition-colors"><i
+                                        data-lucide="shopping-cart" class="w-5 h-5"></i></button>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            <footer class="bg-gray-50 border-t border-gray-100 px-6 py-8">
+                <div class="flex items-center gap-2 mb-4">
+                    <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center"><i data-lucide="zap"
+                            class="w-5 h-5 text-white"></i></div>
+                    <span class="font-semibold" x-text="storeSettings.store_name || 'Creative Maven'"></span>
+                </div>
+                <p class="text-sm text-muted mb-4"
+                    x-text="storeSettings.store_description || 'Digital Creator & Educator'"></p>
+                <div class="flex gap-4 mb-6">
+                    <a x-show="storeSettings.instagram_url" :href="storeSettings.instagram_url" target="_blank"
+                        class="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm hover:shadow-md transition-shadow"><i
+                            data-lucide="instagram" class="w-5 h-5"></i></a>
+                    <a x-show="storeSettings.whatsapp_number" :href="'https://wa.me/' + storeSettings.whatsapp_number"
+                        target="_blank"
+                        class="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm hover:shadow-md transition-shadow"><i
+                            data-lucide="message-circle" class="w-5 h-5"></i></a>
+                </div>
+                <p class="text-xs text-muted text-center">&copy; <span x-text="new Date().getFullYear()"></span> <span
+                        x-text="storeSettings.store_name || 'Creative Maven'"></span>. All rights reserved.</p>
+            </footer>
+        </div>
+
+        <!-- ==================== PRODUCT DETAIL PAGE ==================== -->
+        <div x-show="currentPage === 'product-detail'" x-transition class="min-h-screen">
+            <div class="sticky top-0 z-30 bg-white/80 backdrop-blur-sm px-4 py-3 border-b border-gray-100">
+                <button @click="currentPage = 'home'"
+                    class="flex items-center gap-2 text-text hover:text-primary transition-colors"><i
+                        data-lucide="arrow-left" class="w-5 h-5"></i><span class="font-medium">Kembali</span></button>
+            </div>
+            <div x-show="selectedProduct">
+                <div class="aspect-[4/3] bg-gray-100">
+                    <img :src="selectedProduct?.image_url || 'https://via.placeholder.com/800x600?text=No+Image'"
+                        :alt="selectedProduct?.name" class="w-full h-full object-cover">
+                </div>
+                <!-- YouTube Video Embed -->
+                <div x-show="selectedProduct?.youtube_url && getYouTubeEmbedUrl(selectedProduct.youtube_url)"
+                    class="px-4 pt-4">
+                    <div class="relative w-full rounded-xl overflow-hidden" style="padding-bottom: 56.25%;">
+                        <iframe :src="getYouTubeEmbedUrl(selectedProduct?.youtube_url)"
+                            class="absolute inset-0 w-full h-full" frameborder="0"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowfullscreen>
+                        </iframe>
+                    </div>
+                </div>
+                <div class="p-4 pb-24">
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="text-xs px-2.5 py-1 bg-primary/10 text-primary rounded-full capitalize"
+                            x-text="selectedProduct?.category"></span>
+                        <span
+                            x-show="selectedProduct?.sale_price > 0 && selectedProduct?.sale_price < selectedProduct?.price"
+                            class="text-xs px-2 py-1 bg-red-100 text-red-600 rounded-full"
+                            x-text="'Diskon ' + getDiscountPercent(selectedProduct?.price, selectedProduct?.sale_price) + '%'"></span>
+                    </div>
+                    <h1 class="text-xl font-bold mb-3" x-text="selectedProduct?.name"></h1>
+                    <div class="flex items-center gap-3 mb-4">
+                        <span class="text-2xl font-bold text-primary"
+                            x-text="formatPrice(selectedProduct?.sale_price || selectedProduct?.price)"></span>
+                        <span
+                            x-show="selectedProduct?.sale_price > 0 && selectedProduct?.sale_price < selectedProduct?.price"
+                            class="text-lg text-gray-400 line-through"
+                            x-text="formatPrice(selectedProduct?.price)"></span>
+                    </div>
+                    <div class="flex items-center gap-2 mb-4">
+                        <span
+                            :class="selectedProduct?.type === 'digital' ? 'bg-blue-50 text-blue-600' : 'bg-green-50 text-green-600'"
+                            class="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full"><i
+                                :data-lucide="selectedProduct?.type === 'digital' ? 'download' : 'truck'"
+                                class="w-3.5 h-3.5"></i><span
+                                x-text="selectedProduct?.type === 'digital' ? 'Produk Digital' : 'Produk Fisik'"></span></span>
+                        <span x-show="selectedProduct?.type === 'physical'" class="text-sm"
+                            :class="selectedProduct?.stock > 0 ? 'text-green-600' : 'text-red-500'"
+                            x-text="selectedProduct?.stock > 0 ? 'Stok: ' + selectedProduct?.stock + ' tersisa' : 'Stok Habis'"></span>
+                    </div>
+                    <div class="mb-6">
+                        <h2 class="font-semibold mb-2">Deskripsi</h2>
+                        <p class="text-muted text-sm whitespace-pre-line"
+                            x-text="selectedProduct?.description || 'Tidak ada deskripsi'"></p>
+                    </div>
+                </div>
+                <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 p-4 max-w-[480px] mx-auto">
+                    <button @click="addToCart(selectedProduct)"
+                        :disabled="selectedProduct?.type === 'physical' && selectedProduct?.stock <= 0"
+                        :class="selectedProduct?.type === 'physical' && selectedProduct?.stock <= 0 ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-primary text-text hover:bg-primary/90'"
+                        class="w-full font-semibold py-3 rounded-full transition-colors flex items-center justify-center gap-2"><i
+                            data-lucide="shopping-cart" class="w-5 h-5"></i><span
+                            x-text="selectedProduct?.type === 'physical' && selectedProduct?.stock <= 0 ? 'Stok Habis' : 'Tambah ke Keranjang'"></span></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== CHECKOUT PAGE ==================== -->
+        <div x-show="currentPage === 'checkout'" x-transition class="min-h-screen">
+            <div class="sticky top-0 z-30 bg-white/80 backdrop-blur-sm px-4 py-3 border-b border-gray-100">
+                <button @click="currentPage = 'home'"
+                    class="flex items-center gap-2 text-text hover:text-primary transition-colors"><i
+                        data-lucide="arrow-left" class="w-5 h-5"></i><span class="font-medium">Kembali</span></button>
+            </div>
+            <div class="p-4 pb-24">
+                <h1 class="text-xl font-bold mb-6">Checkout</h1>
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
+                    <h2 class="font-semibold mb-4">Ringkasan Pesanan</h2>
+                    <div class="space-y-3 mb-4">
+                        <template x-for="item in cart" :key="item.product_id">
+                            <div class="flex items-center gap-3">
+                                <img :src="item.image_url" class="w-12 h-12 rounded-lg object-cover">
+                                <div class="flex-1">
+                                    <p class="text-sm font-medium line-clamp-1" x-text="item.name"></p>
+                                    <p class="text-xs text-muted"><span x-text="item.quantity"></span> x <span
+                                            x-text="formatPrice(item.price)"></span></p>
+                                </div>
+                                <p class="font-medium text-sm" x-text="formatPrice(item.price * item.quantity)"></p>
+                            </div>
+                        </template>
+                    </div>
+                    <div class="border-t border-gray-100 pt-3 flex justify-between items-center"><span
+                            class="font-semibold">Total</span><span class="text-xl font-bold text-primary"
+                            x-text="formatPrice(getCartTotal())"></span></div>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
+                    <h2 class="font-semibold mb-4">Data Pembeli</h2>
+                    <div class="space-y-4">
+                        <div><label class="block text-sm font-medium text-gray-700 mb-1.5">Nama Lengkap</label><input
+                                type="text" x-model="checkoutForm.name" placeholder="Nama lengkap"
+                                class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50">
+                        </div>
+                        <div><label class="block text-sm font-medium text-gray-700 mb-1.5">Email</label><input
+                                type="email" x-model="checkoutForm.email" :readonly="user"
+                                placeholder="email@example.com"
+                                :class="user ? 'bg-gray-100 text-gray-500' : 'bg-gray-50'"
+                                class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50">
+                        </div>
+                        <div><label class="block text-sm font-medium text-gray-700 mb-1.5">No. WhatsApp</label><input
+                                type="tel" x-model="checkoutForm.phone" placeholder="08123456789"
+                                class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50">
+                        </div>
+                        <div x-show="hasPhysicalItems"><label
+                                class="block text-sm font-medium text-gray-700 mb-1.5">Alamat
+                                Pengiriman</label><textarea x-model="checkoutForm.address" rows="3"
+                                placeholder="Alamat lengkap"
+                                class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"></textarea>
+                        </div>
+                        <div x-show="hasPhysicalItems"><label
+                                class="block text-sm font-medium text-gray-700 mb-1.5">Kota</label><input type="text"
+                                x-model="checkoutForm.city" placeholder="Jakarta"
+                                class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50">
+                        </div>
+                        <div><label class="block text-sm font-medium text-gray-700 mb-1.5">Catatan
+                                (opsional)</label><textarea x-model="checkoutForm.notes" rows="2"
+                                placeholder="Catatan untuk penjual"
+                                class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
+                    <h2 class="font-semibold mb-4">Metode Pembayaran</h2>
+                    <div class="space-y-3">
+                        <label :class="checkoutForm.paymentMethod === 'transfer' ? 'border-primary bg-primary/5' : ''"
+                            class="flex items-center gap-3 p-3 border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors"><input
+                                type="radio" x-model="checkoutForm.paymentMethod" value="transfer"
+                                class="w-4 h-4 text-primary">
+                            <div class="flex-1">
+                                <p class="font-medium text-sm">Transfer Bank</p>
+                                <p class="text-xs text-muted" x-show="storeSettings.bank_name"
+                                    x-text="storeSettings.bank_name"></p>
+                            </div><i data-lucide="building-2" class="w-5 h-5 text-muted"></i>
+                        </label>
+                        <label :class="checkoutForm.paymentMethod === 'qris' ? 'border-primary bg-primary/5' : ''"
+                            class="flex items-center gap-3 p-3 border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors"><input
+                                type="radio" x-model="checkoutForm.paymentMethod" value="qris"
+                                class="w-4 h-4 text-primary">
+                            <div class="flex-1">
+                                <p class="font-medium text-sm">QRIS</p>
+                                <p class="text-xs text-muted">Scan QR code</p>
+                            </div><i data-lucide="qr-code" class="w-5 h-5 text-muted"></i>
+                        </label>
+                    </div>
+                </div>
+                <button @click="submitOrder()" :disabled="submittingOrder || cart.length === 0"
+                    class="w-full bg-primary text-text font-semibold py-3 rounded-full hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <div x-show="submittingOrder"
+                        class="w-5 h-5 border-2 border-text border-t-transparent rounded-full animate-spin"></div><i
+                        x-show="!submittingOrder" data-lucide="credit-card" class="w-5 h-5"></i><span
+                        x-text="submittingOrder ? 'Memproses...' : 'Buat Pesanan'"></span>
+                </button>
+            </div>
+        </div>
+
+        <!-- ==================== PAYMENT PAGE ==================== -->
+        <div x-show="currentPage === 'payment'" x-transition class="min-h-screen">
+            <div class="sticky top-0 z-30 bg-white/80 backdrop-blur-sm px-4 py-3 border-b border-gray-100">
+                <button @click="currentPage = 'home'; clearCart()"
+                    class="flex items-center gap-2 text-text hover:text-primary transition-colors"><i
+                        data-lucide="arrow-left" class="w-5 h-5"></i><span class="font-medium">Kembali ke
+                        Toko</span></button>
+            </div>
+            <div class="p-4 pb-24" x-show="currentOrder">
+                <div class="text-center py-8">
+                    <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4"><i
+                            data-lucide="check" class="w-10 h-10 text-green-500"></i></div>
+                    <h1 class="text-xl font-bold mb-2">Pesanan Berhasil Dibuat!</h1>
+                    <p class="text-muted text-sm">Nomor Order: <span class="font-mono font-medium"
+                            x-text="currentOrder?.order_number"></span></p>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6 text-center">
+                    <p class="text-sm text-muted mb-1">Total yang harus dibayar</p>
+                    <p class="text-3xl font-bold text-primary" x-text="formatPrice(currentOrder?.total_amount)"></p>
+                </div>
+                <div x-show="currentOrder?.payment_method === 'transfer'"
+                    class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
+                    <h2 class="font-semibold mb-4">Instruksi Transfer</h2>
+                    <div class="bg-gray-50 rounded-xl p-4 space-y-2">
+                        <div class="flex justify-between"><span class="text-sm text-muted">Bank</span><span
+                                class="text-sm font-medium" x-text="storeSettings.bank_name || '-'"></span></div>
+                        <div class="flex justify-between items-center"><span class="text-sm text-muted">No.
+                                Rekening</span>
+                            <div class="flex items-center gap-2"><span class="text-sm font-mono font-medium"
+                                    x-text="storeSettings.bank_account_number || '-'"></span><button
+                                    @click="copyToClipboard(storeSettings.bank_account_number)" class="text-primary"><i
+                                        data-lucide="copy" class="w-4 h-4"></i></button></div>
+                        </div>
+                        <div class="flex justify-between"><span class="text-sm text-muted">Atas Nama</span><span
+                                class="text-sm font-medium" x-text="storeSettings.bank_account_name || '-'"></span>
+                        </div>
+                    </div>
+                    <p class="text-xs text-muted mt-3">* Transfer tepat sesuai jumlah total</p>
+                </div>
+                <div x-show="currentOrder?.payment_method === 'qris'"
+                    class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
+                    <h2 class="font-semibold mb-4">Scan QRIS</h2>
+                    <div class="text-center"><img
+                            :src="storeSettings.qris_image_url || 'https://via.placeholder.com/300x300?text=QRIS+Not+Set'"
+                            alt="QRIS Code" class="w-48 h-48 mx-auto rounded-xl border border-gray-200">
+                        <p class="text-xs text-muted mt-3">Scan QR code menggunakan aplikasi e-wallet atau mobile
+                            banking</p>
+                    </div>
+                </div>
+                <div x-show="!currentOrder?.payment_proof_url"
+                    class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
+                    <h2 class="font-semibold mb-4">Upload Bukti Pembayaran</h2>
+                    <div class="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center hover:border-primary/50 transition-colors cursor-pointer"
+                        @click="$refs.paymentProofInput.click()">
+                        <input type="file" x-ref="paymentProofInput" @change="uploadPaymentProof($event)"
+                            accept="image/*" class="hidden">
+                        <i data-lucide="upload-cloud" class="w-10 h-10 text-gray-400 mx-auto mb-2"></i>
+                        <p class="text-sm text-gray-500">Klik untuk upload bukti pembayaran</p>
+                        <p class="text-xs text-gray-400 mt-1">JPG, PNG max 5MB</p>
+                    </div>
+                    <div x-show="uploadingProof" class="mt-3 text-center">
+                        <div
+                            class="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto">
+                        </div>
+                        <p class="text-xs text-muted mt-1">Mengupload...</p>
+                    </div>
+                </div>
+                <div x-show="currentOrder?.payment_proof_url"
+                    class="bg-green-50 border border-green-200 rounded-xl p-4 mb-6">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center"><i
+                                data-lucide="check-circle" class="w-5 h-5 text-green-500"></i></div>
+                        <div>
+                            <p class="font-medium text-green-800">Bukti pembayaran terkirim!</p>
+                            <p class="text-sm text-green-600">Kami akan memverifikasi dalam 1x24 jam</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="space-y-3">
+                    <a href="member.html"
+                        class="block w-full bg-primary text-text font-semibold py-3 rounded-full hover:bg-primary/90 transition-colors text-center">Cek
+                        Status Pesanan</a>
+                    <button @click="currentPage = 'home'; clearCart()"
+                        class="w-full border border-gray-200 text-text font-semibold py-3 rounded-full hover:bg-gray-50 transition-colors">Kembali
+                        ke Toko</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== CART SLIDE-OVER ==================== -->
+    <div x-show="showCart" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100" x-transition:leave="transition ease-in duration-200"
+        x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="fixed inset-0 z-50"
+        style="display: none;">
+        <div class="absolute inset-0 bg-black/50" @click="showCart = false"></div>
+        <div x-show="showCart" x-transition:enter="transition ease-out duration-300"
+            x-transition:enter-start="translate-x-full" x-transition:enter-end="translate-x-0"
+            x-transition:leave="transition ease-in duration-200" x-transition:leave-start="translate-x-0"
+            x-transition:leave-end="translate-x-full"
+            class="absolute right-0 top-0 h-full w-full max-w-sm bg-white shadow-xl flex flex-col">
+            <div class="px-4 py-4 border-b border-gray-100 flex items-center justify-between">
+                <h2 class="text-lg font-bold">Keranjang Belanja</h2><button @click="showCart = false"
+                    class="p-2 hover:bg-gray-100 rounded-lg"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <div x-show="cart.length === 0" class="flex-1 flex flex-col items-center justify-center p-8">
+                <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4"><i
+                        data-lucide="shopping-cart" class="w-10 h-10 text-gray-400"></i></div>
+                <h3 class="font-semibold text-gray-700 mb-1">Keranjang kosong</h3>
+                <p class="text-muted text-sm text-center mb-4">Yuk, tambahkan produk ke keranjang</p>
+                <button @click="showCart = false"
+                    class="bg-primary text-text font-semibold py-2.5 px-6 rounded-full hover:bg-primary/90 transition-colors">Belanja
+                    Sekarang</button>
+            </div>
+            <div x-show="cart.length > 0" class="flex-1 overflow-y-auto p-4">
+                <div class="space-y-4">
+                    <template x-for="(item, index) in cart" :key="item.product_id">
+                        <div class="flex gap-3">
+                            <img :src="item.image_url" class="w-20 h-20 rounded-lg object-cover">
+                            <div class="flex-1">
+                                <h4 class="font-medium text-sm line-clamp-2" x-text="item.name"></h4>
+                                <p class="text-primary font-bold text-sm mt-1" x-text="formatPrice(item.price)"></p>
+                                <div class="flex items-center gap-2 mt-2">
+                                    <button @click="updateQuantity(item.product_id, item.quantity - 1)"
+                                        class="w-7 h-7 bg-gray-100 rounded-lg flex items-center justify-center hover:bg-gray-200"><i
+                                            data-lucide="minus" class="w-4 h-4"></i></button>
+                                    <span class="w-8 text-center font-medium" x-text="item.quantity"></span>
+                                    <button @click="updateQuantity(item.product_id, item.quantity + 1)"
+                                        class="w-7 h-7 bg-gray-100 rounded-lg flex items-center justify-center hover:bg-gray-200"><i
+                                            data-lucide="plus" class="w-4 h-4"></i></button>
+                                </div>
+                            </div>
+                            <button @click="removeFromCart(item.product_id)"
+                                class="p-2 text-red-500 hover:bg-red-50 rounded-lg self-start"><i data-lucide="trash-2"
+                                    class="w-4 h-4"></i></button>
+                        </div>
+                    </template>
+                </div>
+            </div>
+            <div x-show="cart.length > 0" class="border-t border-gray-100 p-4 space-y-3">
+                <div class="flex justify-between items-center"><span class="font-medium">Subtotal</span><span
+                        class="text-xl font-bold text-primary" x-text="formatPrice(getCartTotal())"></span></div>
+                <button @click="showCart = false; goToCheckout()"
+                    class="w-full bg-primary text-text font-semibold py-3 rounded-full hover:bg-primary/90 transition-colors">Checkout</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== AUTH MODAL ==================== -->
+    <div x-show="showAuthModal" x-transition:enter="transition ease-out duration-200"
+        x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+        x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0" class="fixed inset-0 z-50 flex items-center justify-center p-4"
+        style="display: none;">
+        <div class="absolute inset-0 bg-black/50" @click="showAuthModal = false"></div>
+        <div x-show="showAuthModal" x-transition:enter="transition ease-out duration-300"
+            x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
+            x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 scale-100"
+            x-transition:leave-end="opacity-0 scale-95"
+            class="bg-white rounded-2xl shadow-xl w-full max-w-md relative overflow-hidden">
+            <button @click="showAuthModal = false"
+                class="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg z-10"><i data-lucide="x"
+                    class="w-5 h-5 text-gray-500"></i></button>
+            <div class="flex border-b border-gray-100">
+                <button @click="authMode = 'login'; authError = ''"
+                    :class="authMode === 'login' ? 'border-b-2 border-primary text-text' : 'text-muted'"
+                    class="flex-1 py-4 font-medium transition-colors">Masuk</button>
+                <button @click="authMode = 'register'; authError = ''"
+                    :class="authMode === 'register' ? 'border-b-2 border-primary text-text' : 'text-muted'"
+                    class="flex-1 py-4 font-medium transition-colors">Daftar</button>
+            </div>
+            <div class="p-6">
+                <div x-show="authError" class="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm"
+                    x-text="authError"></div>
+                <form x-show="authMode === 'login'" @submit.prevent="login()" class="space-y-4">
+                    <div><label class="block text-sm font-medium text-gray-700 mb-1.5">Email</label><input type="email"
+                            x-model="authForm.email" required placeholder="email@example.com"
+                            class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50">
+                    </div>
+                    <div><label class="block text-sm font-medium text-gray-700 mb-1.5">Password</label><input
+                            type="password" x-model="authForm.password" required placeholder="********"
+                            class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50">
+                    </div>
+                    <button type="submit" :disabled="authLoading"
+                        class="w-full bg-primary text-text font-semibold py-3 rounded-full hover:bg-primary/90 transition-colors flex items-center justify-center gap-2">
+                        <div x-show="authLoading"
+                            class="w-5 h-5 border-2 border-text border-t-transparent rounded-full animate-spin"></div>
+                        <span x-text="authLoading ? 'Memuat...' : 'Masuk'"></span>
+                    </button>
+                </form>
+                <form x-show="authMode === 'register'" @submit.prevent="register()" class="space-y-4">
+                    <div><label class="block text-sm font-medium text-gray-700 mb-1.5">Nama Lengkap</label><input
+                            type="text" x-model="authForm.fullName" required placeholder="Nama lengkap"
+                            class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50">
+                    </div>
+                    <div><label class="block text-sm font-medium text-gray-700 mb-1.5">Email</label><input type="email"
+                            x-model="authForm.email" required placeholder="email@example.com"
+                            class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50">
+                    </div>
+                    <div><label class="block text-sm font-medium text-gray-700 mb-1.5">Password</label><input
+                            type="password" x-model="authForm.password" required minlength="6"
+                            placeholder="Min 6 karakter"
+                            class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50">
+                    </div>
+                    <button type="submit" :disabled="authLoading"
+                        class="w-full bg-primary text-text font-semibold py-3 rounded-full hover:bg-primary/90 transition-colors flex items-center justify-center gap-2">
+                        <div x-show="authLoading"
+                            class="w-5 h-5 border-2 border-text border-t-transparent rounded-full animate-spin"></div>
+                        <span x-text="authLoading ? 'Memuat...' : 'Daftar'"></span>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== TOAST CONTAINER ==================== -->
+    <div x-data="{ toasts: [] }"
+        x-on:show-toast.window="toasts.push({message: $event.detail.message, type: $event.detail.type || 'success', id: Date.now()}); setTimeout(() => toasts.shift(), 3000)"
+        class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] space-y-2 pointer-events-none">
+        <template x-for="toast in toasts" :key="toast.id">
+            <div x-transition
+                :class="toast.type === 'error' ? 'bg-red-500' : toast.type === 'warning' ? 'bg-yellow-500' : 'bg-green-500'"
+                class="text-white px-6 py-3 rounded-full shadow-lg text-sm font-medium pointer-events-auto"><span
+                    x-text="toast.message"></span></div>
+        </template>
+    </div>
+
+    <!-- ==================== SUPABASE CONFIG & APP LOGIC ==================== -->
+    <script>
+        // ==========================================
+        // Supabase Configuration
+        // Ganti dengan URL dan Anon Key project Supabase Anda
+        const SUPABASE_URL = 'https://mluhcieuafqfzzzmubly.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1sdWhjaWV1YWZxZnp6em11Ymx5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA3ODEzNjMsImV4cCI6MjA4NjM1NzM2M30.SU_Ak-aWoX4pc0Ye4wr8rlwGtKHTKMqAYa-7x2IWnZE';
+
+        // Create Supabase client
+        // IMPORTANT: The Supabase CDN declares "var supabase" globally.
+        // We must NOT use let/const to redeclare it — that causes a SyntaxError.
+        // Instead, we reassign the existing global variable.
+        supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+
+
+        function storefrontApp() {
+            return {
+                currentPage: 'home',
+                user: null,
+                profile: null,
+                products: [],
+                filteredProducts: [],
+                featuredProducts: [],
+                selectedCategory: 'all',
+                searchQuery: '',
+                selectedProduct: null,
+                cart: [],
+                showCart: false,
+                showAuthModal: false,
+                authMode: 'login',
+                showMobileMenu: false,
+                showSearch: false,
+                storeSettings: {},
+                customerCount: 0,
+                isLoading: true,
+                checkoutForm: { name: '', email: '', phone: '', address: '', city: '', notes: '', paymentMethod: 'transfer' },
+                currentOrder: null,
+                submittingOrder: false,
+                uploadingProof: false,
+                authForm: { email: '', password: '', fullName: '' },
+                authError: '',
+                authLoading: false,
+
+                get hasPhysicalItems() { return this.cart.some(item => item.type === 'physical'); },
+
+                async init() {
+                    try {
+                        await Promise.all([this.loadProducts(), this.loadStoreSettings(), this.checkAuth(), this.loadCustomerCount()]);
+                    } catch (err) {
+                        console.error('Init error:', err);
+                    }
+                    this.loadCart();
+                    this.filteredProducts = this.products;
+                    this.featuredProducts = this.products.filter(p => p.featured);
+                    this.isLoading = false;
+                    this.$nextTick(() => { try { lucide.createIcons(); } catch (e) { console.error('Lucide init error:', e); } });
+
+                    supabase.auth.onAuthStateChange((event, session) => {
+                        if (event === 'SIGNED_IN') { this.user = session.user; this.loadProfile(); }
+                        else if (event === 'SIGNED_OUT') { this.user = null; this.profile = null; }
+                    });
+                },
+
+                async loadProducts() {
+                    const { data, error } = await supabase.from('products').select('*').eq('status', 'active').order('featured', { ascending: false }).order('created_at', { ascending: false });
+                    if (error) console.error('Error loading products:', error);
+                    else this.products = data || [];
+                },
+
+                async loadStoreSettings() {
+                    const { data, error } = await supabase.from('store_settings').select('*').single();
+                    if (error) console.error('Error loading settings:', error);
+                    else {
+                        this.storeSettings = data || {};
+                        this.initTracking();
+                    }
+                },
+
+                initTracking() {
+                    const pixelId = this.storeSettings?.fb_pixel_id;
+                    const gaId = this.storeSettings?.ga4_measurement_id;
+
+                    // Init Facebook Pixel jika ID valid
+                    if (pixelId && pixelId !== '') {
+                        if (typeof fbq !== 'undefined') {
+                            fbq('init', pixelId);
+                            fbq('track', 'PageView');
+                            window._fbPixelInitialized = true;
+                        }
+                    }
+
+                    // Init GA4 jika ID valid
+                    if (gaId && gaId !== '') {
+                        const gaScript = document.querySelector('script[src*="gtag/js"]');
+                        if (gaScript) {
+                            gaScript.src = 'https://www.googletagmanager.com/gtag/js?id=' + gaId;
+                        }
+                        if (typeof gtag !== 'undefined') {
+                            gtag('config', gaId, { 'send_page_view': true });
+                        }
+                        window._ga4Id = gaId;
+                    }
+                },
+
+                async loadCustomerCount() {
+                    const { count } = await supabase.from('orders').select('user_id', { count: 'exact', head: true }).not('user_id', 'is', null);
+                    this.customerCount = count || 0;
+                },
+
+                async checkAuth() {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    if (session) { this.user = session.user; await this.loadProfile(); }
+                },
+
+                async loadProfile() {
+                    if (!this.user) return;
+                    const { data } = await supabase.from('profiles').select('*').eq('id', this.user.id).single();
+                    if (data) {
+                        this.profile = data;
+                        this.checkoutForm.name = data.full_name || '';
+                        this.checkoutForm.phone = data.phone || '';
+                        this.checkoutForm.address = data.address || '';
+                        this.checkoutForm.city = data.city || '';
+                    }
+                    if (this.user.email) this.checkoutForm.email = this.user.email;
+                },
+
+                filterProducts() {
+                    let result = this.products;
+                    if (this.selectedCategory !== 'all') result = result.filter(p => p.category === this.selectedCategory);
+                    if (this.searchQuery) {
+                        const query = this.searchQuery.toLowerCase();
+                        result = result.filter(p => p.name.toLowerCase().includes(query));
+                        this.trackSearch(query);
+                    }
+                    this.filteredProducts = result;
+                },
+
+                openProductDetail(product) { this.selectedProduct = product; this.trackViewContent(product); this.currentPage = 'product-detail'; window.scrollTo(0, 0); this.$nextTick(() => { try { lucide.createIcons(); } catch (e) { } }); },
+                scrollToProducts() { document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' }); },
+
+                addToCart(product, quantity = 1) {
+                    if (product.type === 'physical' && product.stock <= 0) { this.showToast('Stok habis', 'error'); return; }
+                    const existingItem = this.cart.find(item => item.product_id === product.id);
+                    if (existingItem) {
+                        if (product.type === 'physical' && existingItem.quantity >= product.stock) { this.showToast('Stok tidak mencukupi', 'error'); return; }
+                        existingItem.quantity += quantity;
+                    }
+                    else { this.cart.push({ product_id: product.id, name: product.name, price: product.sale_price || product.price, image_url: product.image_url || 'https://via.placeholder.com/200?text=No+Image', quantity: quantity, type: product.type, file_url: product.file_url || '' }); }
+                    this.saveCart();
+                    this.trackAddToCart(product, quantity);
+                    this.showToast('Produk ditambahkan ke keranjang');
+                    this.$nextTick(() => { try { lucide.createIcons(); } catch (e) { } });
+                },
+                removeFromCart(productId) { this.cart = this.cart.filter(item => item.product_id !== productId); this.saveCart(); },
+                updateQuantity(productId, quantity) {
+                    const item = this.cart.find(item => item.product_id === productId);
+                    if (!item) return;
+                    const product = this.products.find(p => p.id === productId);
+                    if (quantity < 1) { this.removeFromCart(productId); return; }
+                    if (product?.type === 'physical' && quantity > product.stock) { this.showToast('Stok tidak mencukupi', 'error'); return; }
+                    item.quantity = quantity; this.saveCart();
+                },
+                getCartTotal() { return this.cart.reduce((sum, item) => sum + (item.price * item.quantity), 0); },
+                getCartCount() { return this.cart.reduce((sum, item) => sum + item.quantity, 0); },
+                loadCart() { const saved = localStorage.getItem('cart'); if (saved) { try { this.cart = JSON.parse(saved); } catch (e) { this.cart = []; } } },
+                saveCart() { localStorage.setItem('cart', JSON.stringify(this.cart)); },
+                clearCart() { this.cart = []; localStorage.removeItem('cart'); },
+
+                goToCheckout() {
+                    if (!this.user) { this.showAuthModal = true; return; }
+                    this.trackInitiateCheckout();
+                    this.currentPage = 'checkout'; window.scrollTo(0, 0); this.$nextTick(() => { try { lucide.createIcons(); } catch (e) { } });
+                },
+
+                async submitOrder() {
+                    if (!this.checkoutForm.name || !this.checkoutForm.email || !this.checkoutForm.phone) { this.showToast('Mohon lengkapi data pembeli', 'error'); return; }
+                    if (this.hasPhysicalItems && (!this.checkoutForm.address || !this.checkoutForm.city)) { this.showToast('Mohon lengkapi alamat pengiriman', 'error'); return; }
+                    if (!this.user) { this.showAuthModal = true; return; }
+                    this.submittingOrder = true;
+                    try {
+                        this.trackAddPaymentInfo(this.checkoutForm.paymentMethod);
+                        const orderData = { user_id: this.user.id, customer_name: this.checkoutForm.name, customer_email: this.checkoutForm.email, customer_phone: this.checkoutForm.phone, total_amount: this.getCartTotal(), payment_method: this.checkoutForm.paymentMethod, shipping_address: this.checkoutForm.address || null, shipping_city: this.checkoutForm.city || null, notes: this.checkoutForm.notes || null, has_physical_items: this.hasPhysicalItems };
+                        const { data: order, error: orderError } = await supabase.from('orders').insert([orderData]).select().single();
+                        if (orderError) throw orderError;
+                        const orderItems = this.cart.map(item => ({ order_id: order.id, product_id: item.product_id, product_name: item.name, product_type: item.type, quantity: item.quantity, price: item.price, file_url: item.file_url || '' }));
+                        const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
+                        if (itemsError) throw itemsError;
+                        this.currentOrder = order;
+                        this.trackPurchase(order);
+                        this.currentPage = 'payment'; window.scrollTo(0, 0); this.showToast('Pesanan berhasil dibuat!');
+                    } catch (error) { console.error('Error submitting order:', error); this.showToast('Gagal membuat pesanan', 'error'); }
+                    this.submittingOrder = false;
+                },
+
+                async uploadPaymentProof(event) {
+                    const file = event.target.files[0]; if (!file) return;
+                    if (file.size > 5 * 1024 * 1024) { this.showToast('File terlalu besar (max 5MB)', 'error'); return; }
+                    this.uploadingProof = true;
+                    try {
+                        const fileExt = file.name.split('.').pop();
+                        const fileName = `payment-${this.currentOrder.order_number}-${Date.now()}.${fileExt}`;
+                        const { error: uploadError } = await supabase.storage.from('payment-proofs').upload(fileName, file);
+                        if (uploadError) throw uploadError;
+                        const { data: { publicUrl } } = supabase.storage.from('payment-proofs').getPublicUrl(fileName);
+                        const { error: updateError } = await supabase.from('orders').update({ payment_proof_url: publicUrl }).eq('id', this.currentOrder.id);
+                        if (updateError) throw updateError;
+                        this.currentOrder.payment_proof_url = publicUrl; this.showToast('Bukti pembayaran berhasil diupload');
+                    } catch (error) { console.error('Error uploading proof:', error); this.showToast('Gagal upload bukti pembayaran', 'error'); }
+                    this.uploadingProof = false;
+                },
+
+                async login() {
+                    this.authLoading = true; this.authError = '';
+                    const { data, error } = await supabase.auth.signInWithPassword({ email: this.authForm.email, password: this.authForm.password });
+                    if (error) {
+                        this.authError = error.message;
+                    } else {
+                        // Load profile untuk cek role
+                        const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.user.id).single();
+
+                        this.showAuthModal = false;
+                        this.showToast('Berhasil masuk!');
+                        this.authForm = { email: '', password: '', fullName: '' };
+
+                        // Redirect berdasarkan role
+                        if (profile?.role === 'admin') {
+                            window.location.href = 'admin.html';
+                        } else {
+                            window.location.href = 'member.html';
+                        }
+                    }
+                    this.authLoading = false;
+                },
+
+                async register() {
+                    this.authLoading = true; this.authError = '';
+                    const { error } = await supabase.auth.signUp({ email: this.authForm.email, password: this.authForm.password, options: { data: { full_name: this.authForm.fullName } } });
+                    if (error) this.authError = error.message;
+                    else {
+                        this.trackCompleteRegistration('email');
+                        this.showAuthModal = false; this.showToast('Berhasil daftar! Silakan cek email untuk verifikasi.'); this.authForm = { email: '', password: '', fullName: '' };
+                    }
+                    this.authLoading = false;
+                },
+
+                async logout() {
+                    await supabase.auth.signOut();
+                    this.user = null; this.profile = null; this.showToast('Berhasil keluar');
+                },
+
+                formatPrice(price) { return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(price || 0); },
+                getDiscountPercent(price, salePrice) { if (!salePrice || salePrice >= price) return 0; return Math.round((1 - salePrice / price) * 100); },
+                getYouTubeEmbedUrl(url) {
+                    if (!url) return null;
+                    let videoId = null;
+                    const shortMatch = url.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
+                    if (shortMatch) videoId = shortMatch[1];
+                    if (!videoId) { const watchMatch = url.match(/[?&]v=([a-zA-Z0-9_-]{11})/); if (watchMatch) videoId = watchMatch[1]; }
+                    if (!videoId) { const embedMatch = url.match(/embed\/([a-zA-Z0-9_-]{11})/); if (embedMatch) videoId = embedMatch[1]; }
+                    if (!videoId) { const shortsMatch = url.match(/shorts\/([a-zA-Z0-9_-]{11})/); if (shortsMatch) videoId = shortsMatch[1]; }
+                    return videoId ? 'https://www.youtube.com/embed/' + videoId : null;
+                },
+                copyToClipboard(text) { if (!text) return; navigator.clipboard.writeText(text); this.showToast('Disalin ke clipboard!'); },
+                showToast(message, type = 'success') { window.dispatchEvent(new CustomEvent('show-toast', { detail: { message, type } })); },
+
+                // ==========================================
+                // TRACKING METHODS (Facebook Pixel + GA4)
+                // ==========================================
+
+                trackViewContent(product) {
+                    if (!product) return;
+                    const price = product.sale_price || product.price;
+                    trackFacebook('ViewContent', { content_ids: [product.id], content_type: 'product', content_name: product.name, content_category: product.category, currency: 'IDR', value: price });
+                    trackGA4('view_item', { currency: 'IDR', value: price, items: [{ item_id: product.id, item_name: product.name, item_category: product.category, price: price, quantity: 1 }] });
+                },
+
+                trackAddToCart(product, quantity = 1) {
+                    if (!product) return;
+                    const price = product.sale_price || product.price;
+                    trackFacebook('AddToCart', { content_ids: [product.id], content_type: 'product', content_name: product.name, content_category: product.category, currency: 'IDR', value: price * quantity, num_items: quantity });
+                    trackGA4('add_to_cart', { currency: 'IDR', value: price * quantity, items: [{ item_id: product.id, item_name: product.name, item_category: product.category, price: price, quantity: quantity }] });
+                },
+
+                trackInitiateCheckout() {
+                    const items = this.cart.map(item => ({ item_id: item.product_id, item_name: item.name, price: item.price, quantity: item.quantity }));
+                    const total = this.getCartTotal();
+                    trackFacebook('InitiateCheckout', { content_ids: this.cart.map(i => i.product_id), content_type: 'product', currency: 'IDR', value: total, num_items: this.getCartCount() });
+                    trackGA4('begin_checkout', { currency: 'IDR', value: total, items: items });
+                },
+
+                trackPurchase(order) {
+                    if (!order) return;
+                    trackFacebook('Purchase', { content_ids: this.cart.map(i => i.product_id), content_type: 'product', currency: 'IDR', value: order.total_amount, order_id: order.order_number, num_items: this.getCartCount() });
+                    trackGA4('purchase', { transaction_id: order.order_number, value: order.total_amount, currency: 'IDR', items: this.cart.map(item => ({ item_id: item.product_id, item_name: item.name, price: item.price, quantity: item.quantity })) });
+                },
+
+                trackSearch(query) {
+                    if (!query) return;
+                    trackFacebook('Search', { search_string: query });
+                    trackGA4('search', { search_term: query });
+                },
+
+                trackCompleteRegistration(method = 'email') {
+                    trackFacebook('CompleteRegistration', { content_name: 'User Registration', status: true, registration_method: method });
+                    trackGA4('sign_up', { method: method });
+                },
+
+                trackLead(label) {
+                    trackFacebook('Lead', { content_name: label });
+                    trackGA4('generate_lead', { source: label });
+                },
+
+                trackAddPaymentInfo(method) {
+                    trackFacebook('AddPaymentInfo', { payment_method: method });
+                    trackGA4('add_payment_info', { payment_method: method });
+                }
+            }
+        }
+    </script>
+    <script>document.addEventListener('DOMContentLoaded', function () { lucide.createIcons(); });</script>
+</body>
+
+</html>
