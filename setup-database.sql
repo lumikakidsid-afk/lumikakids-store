@@ -536,6 +536,12 @@ ALTER TABLE products ADD COLUMN IF NOT EXISTS youtube_url TEXT DEFAULT '';
 -- Untuk menambahkan admin lain, jalankan: SELECT promote_to_admin('email@contoh.com');
 
 -- ============================================================
+-- 13B. MULTI-IMAGE & BANNER COLUMNS
+-- ============================================================
+ALTER TABLE products ADD COLUMN IF NOT EXISTS image_urls JSONB DEFAULT '[]';
+ALTER TABLE store_settings ADD COLUMN IF NOT EXISTS banner_urls JSONB DEFAULT '[]';
+
+-- ============================================================
 -- 14. STORAGE BUCKET POLICIES (WAJIB untuk upload)
 -- ============================================================
 -- JALANKAN QUERY INI DI SQL EDITOR SUPABASE

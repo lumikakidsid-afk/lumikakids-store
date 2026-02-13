@@ -771,30 +771,34 @@
                                 </div>
                             </div>
 
-                            <!-- Owner Avatar Upload -->
-                            <div class="md:col-span-2 mt-2">
-                                <label class="block text-sm font-medium text-gray-700 mb-1.5">Foto Profil Owner</label>
-                                <div class="flex items-center gap-4">
-                                    <div
-                                        class="relative w-20 h-20 bg-gray-100 rounded-full overflow-hidden border border-gray-200">
-                                        <img :src="ownerAvatarPreview || settingsForm.owner_avatar_url || 'https://via.placeholder.com/150?text=Avatar'"
-                                            class="w-full h-full object-cover">
-                                    </div>
-                                    <div class="flex-1">
-                                        <div class="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center hover:border-primary/50 transition-colors cursor-pointer"
-                                            @click="$refs.ownerAvatarInput.click()">
-                                            <input type="file" x-ref="ownerAvatarInput"
-                                                @change="handleOwnerAvatarUpload($event)" accept="image/*"
-                                                class="hidden">
-                                            <div class="flex items-center justify-center gap-2 text-sm text-gray-500">
-                                                <i data-lucide="upload" class="w-4 h-4"></i>
-                                                <span>Ganti Foto Profil</span>
-                                            </div>
-                                            <p class="text-xs text-gray-400 mt-1">JPG, PNG max 2MB (disarankan rasio
-                                                1:1)</p>
+                            <!-- Banner Slider Management -->
+                            <div class="md:col-span-2 mt-4">
+                                <label class="block text-sm font-medium text-gray-700 mb-1.5">Banner Slider <span
+                                        class="text-xs text-gray-400">(max 5 banner, ukuran flexible)</span></label>
+                                <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                    <template x-for="(banner, idx) in bannerPreviews" :key="idx">
+                                        <div
+                                            class="relative group aspect-video border-2 border-gray-200 rounded-xl overflow-hidden">
+                                            <img :src="banner" class="w-full h-full object-cover">
+                                            <button type="button" @click="removeBanner(idx)"
+                                                class="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">&times;</button>
+                                            <span
+                                                class="absolute bottom-1 left-1 bg-black/50 text-white text-xs px-2 py-0.5 rounded"
+                                                x-text="'Banner ' + (idx+1)"></span>
                                         </div>
+                                    </template>
+                                    <div x-show="bannerPreviews.length < 5"
+                                        class="aspect-video border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-primary/50 transition-colors"
+                                        @click="$refs.bannerInput.click()">
+                                        <input type="file" x-ref="bannerInput" @change="handleBannerUpload($event)"
+                                            accept="image/*" multiple class="hidden">
+                                        <i data-lucide="image-plus" class="w-6 h-6 text-gray-400"></i>
+                                        <span class="text-xs text-gray-400 mt-1"
+                                            x-text="bannerPreviews.length + '/5 banner'"></span>
                                     </div>
                                 </div>
+                                <p class="text-xs text-gray-400 mt-2">Upload gambar banner untuk slider di halaman
+                                    utama.</p>
                             </div>
                         </div>
                     </div>
@@ -961,19 +965,27 @@
                         </div>
                     </div>
 
-                    <!-- Image Upload -->
+                    <!-- Multi-Image Upload (max 5) -->
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1.5">Gambar Produk</label>
-                        <div class="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center hover:border-primary/50 transition-colors cursor-pointer"
-                            @click="$refs.productImageInput.click()">
-                            <input type="file" x-ref="productImageInput" @change="handleProductImage($event)"
-                                accept="image/*" class="hidden">
-                            <img x-show="productImagePreview || productForm.image_url"
-                                :src="productImagePreview || productForm.image_url"
-                                class="w-32 h-32 object-cover rounded-lg mx-auto mb-2">
-                            <div x-show="!productImagePreview && !productForm.image_url">
-                                <i data-lucide="upload-cloud" class="w-8 h-8 text-gray-400 mx-auto mb-2"></i>
-                                <p class="text-sm text-gray-500">Klik untuk upload gambar</p>
+                        <label class="block text-sm font-medium text-gray-700 mb-1.5">Gambar Produk <span
+                                class="text-xs text-gray-400">(max 5 gambar)</span></label>
+                        <div class="grid grid-cols-5 gap-2">
+                            <template x-for="(img, idx) in productImagePreviews" :key="idx">
+                                <div
+                                    class="relative group aspect-square border-2 border-gray-200 rounded-xl overflow-hidden">
+                                    <img :src="img" class="w-full h-full object-cover">
+                                    <button type="button" @click="removeProductImage(idx)"
+                                        class="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-xs">&times;</button>
+                                </div>
+                            </template>
+                            <div x-show="productImagePreviews.length < 5"
+                                class="aspect-square border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-primary/50 transition-colors"
+                                @click="$refs.productMultiImageInput.click()">
+                                <input type="file" x-ref="productMultiImageInput" @change="handleProductImages($event)"
+                                    accept="image/*" multiple class="hidden">
+                                <i data-lucide="plus" class="w-5 h-5 text-gray-400"></i>
+                                <span class="text-xs text-gray-400 mt-1"
+                                    x-text="productImagePreviews.length + '/5'"></span>
                             </div>
                         </div>
                     </div>
@@ -1262,8 +1274,8 @@
                     category: 'ebook', type: 'digital', stock: 0, weight: 0,
                     status: 'active', featured: false, image_url: '', file_url: '', youtube_url: ''
                 },
-                productImageFile: null,
-                productImagePreview: null,
+                productImageFiles: [],
+                productImagePreviews: [],
                 productDigitalFile: null,
                 productFileName: null,
                 savingProduct: false,
@@ -1285,8 +1297,8 @@
                 settingsForm: {},
                 qrisFile: null,
                 qrisPreview: null,
-                ownerAvatarFile: null,
-                ownerAvatarPreview: null,
+                bannerFiles: [],
+                bannerPreviews: [],
                 storeLogoFile: null,
                 storeLogoPreview: null,
                 savingSettings: false,
@@ -1753,6 +1765,9 @@
 
                     if (data) {
                         this.settingsForm = { ...data };
+                        if (data.banner_urls && Array.isArray(data.banner_urls)) {
+                            this.bannerPreviews = [...data.banner_urls];
+                        }
                     }
                 },
 
@@ -1787,15 +1802,23 @@
                     this.editingProduct = product;
                     if (product) {
                         this.productForm = { ...product };
+                        const existingUrls = product.image_urls || [];
+                        if (existingUrls.length > 0) {
+                            this.productImagePreviews = [...existingUrls];
+                        } else if (product.image_url) {
+                            this.productImagePreviews = [product.image_url];
+                        } else {
+                            this.productImagePreviews = [];
+                        }
                     } else {
                         this.productForm = {
                             name: '', description: '', price: 0, sale_price: 0,
                             category: 'ebook', type: 'digital', stock: 0, weight: 0,
                             status: 'active', featured: false, image_url: '', file_url: '', youtube_url: ''
                         };
+                        this.productImagePreviews = [];
                     }
-                    this.productImageFile = null;
-                    this.productImagePreview = null;
+                    this.productImageFiles = [];
                     this.productDigitalFile = null;
                     this.productFileName = null;
                     this.showProductModal = true;
@@ -1805,14 +1828,29 @@
                 closeProductModal() {
                     this.showProductModal = false;
                     this.editingProduct = null;
+                    this.productImageFiles = [];
+                    this.productImagePreviews = [];
                 },
 
-                handleProductImage(event) {
-                    const file = event.target.files[0];
-                    if (file) {
-                        this.productImageFile = file;
-                        this.productImagePreview = URL.createObjectURL(file);
+                handleProductImages(event) {
+                    const files = Array.from(event.target.files);
+                    const remaining = 5 - this.productImagePreviews.length;
+                    const toAdd = files.slice(0, remaining);
+                    toAdd.forEach(file => {
+                        if (file.type.startsWith('image/')) {
+                            this.productImageFiles.push(file);
+                            this.productImagePreviews.push(URL.createObjectURL(file));
+                        }
+                    });
+                    event.target.value = '';
+                },
+
+                removeProductImage(idx) {
+                    const existingCount = this.productImagePreviews.length - this.productImageFiles.length;
+                    if (idx >= existingCount) {
+                        this.productImageFiles.splice(idx - existingCount, 1);
                     }
+                    this.productImagePreviews.splice(idx, 1);
                 },
 
                 handleProductFile(event) {
@@ -1827,30 +1865,33 @@
                     this.savingProduct = true;
 
                     try {
-                        let imageUrl = this.productForm.image_url;
                         let fileUrl = this.productForm.file_url;
 
-                        // Upload image if new file selected
-                        if (this.productImageFile && this.productImageFile.type.startsWith('image/')) {
-                            const fileExt = this.productImageFile.name.split('.').pop();
-                            const fileName = `product-${Date.now()}.${fileExt}`;
+                        // Build image_urls: keep existing URLs, upload new files
+                        let imageUrls = this.productImagePreviews.filter(url => !url.startsWith('blob:'));
 
-                            const { error: uploadError } = await supabase
-                                .storage
-                                .from('product-images')
-                                .upload(fileName, this.productImageFile);
+                        for (const imgFile of this.productImageFiles) {
+                            if (imgFile.type.startsWith('image/')) {
+                                const fileExt = imgFile.name.split('.').pop();
+                                const fileName = `product-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${fileExt}`;
 
-                            if (uploadError) throw uploadError;
+                                const { error: uploadError } = await supabase
+                                    .storage
+                                    .from('product-images')
+                                    .upload(fileName, imgFile);
 
-                            const { data: { publicUrl } } = supabase
-                                .storage
-                                .from('product-images')
-                                .getPublicUrl(fileName);
+                                if (uploadError) throw uploadError;
 
-                            imageUrl = publicUrl;
+                                const { data: { publicUrl } } = supabase
+                                    .storage
+                                    .from('product-images')
+                                    .getPublicUrl(fileName);
+
+                                imageUrls.push(publicUrl);
+                            }
                         }
 
-                        // Upload digital file if selected (file upload takes priority over manual link)
+                        // Upload digital file if selected
                         if (this.productDigitalFile) {
                             const fileExt = this.productDigitalFile.name.split('.').pop();
                             const fileName = `file-${Date.now()}.${fileExt}`;
@@ -1861,13 +1902,13 @@
                                 .upload(fileName, this.productDigitalFile);
 
                             if (uploadError) throw uploadError;
-
                             fileUrl = fileName;
                         }
 
                         const productData = {
                             ...this.productForm,
-                            image_url: imageUrl,
+                            image_url: imageUrls[0] || '',
+                            image_urls: imageUrls,
                             file_url: fileUrl,
                             updated_at: new Date().toISOString()
                         };
@@ -1990,12 +2031,26 @@
                     }
                 },
 
-                handleOwnerAvatarUpload(event) {
-                    const file = event.target.files[0];
-                    if (file) {
-                        this.ownerAvatarFile = file;
-                        this.ownerAvatarPreview = URL.createObjectURL(file);
+                handleBannerUpload(event) {
+                    const files = Array.from(event.target.files);
+                    const remaining = 5 - this.bannerPreviews.length;
+                    const toAdd = files.slice(0, remaining);
+                    toAdd.forEach(file => {
+                        if (file.type.startsWith('image/')) {
+                            this.bannerFiles.push(file);
+                            this.bannerPreviews.push(URL.createObjectURL(file));
+                        }
+                    });
+                    event.target.value = '';
+                    this.$nextTick(() => lucide.createIcons());
+                },
+
+                removeBanner(idx) {
+                    const existingCount = this.bannerPreviews.length - this.bannerFiles.length;
+                    if (idx >= existingCount) {
+                        this.bannerFiles.splice(idx - existingCount, 1);
                     }
+                    this.bannerPreviews.splice(idx, 1);
                 },
 
                 handleStoreLogoUpload(event) {
@@ -2011,64 +2066,37 @@
 
                     try {
                         let qrisUrl = this.settingsForm.qris_image_url;
-                        let ownerAvatarUrl = this.settingsForm.owner_avatar_url;
                         let storeLogoUrl = this.settingsForm.store_logo_url;
 
                         if (this.qrisFile) {
                             const fileExt = this.qrisFile.name.split('.').pop();
                             const fileName = `qris-${Date.now()}.${fileExt}`;
-
-                            const { error: uploadError } = await supabase
-                                .storage
-                                .from('store-assets')
-                                .upload(fileName, this.qrisFile);
-
+                            const { error: uploadError } = await supabase.storage.from('store-assets').upload(fileName, this.qrisFile);
                             if (uploadError) throw uploadError;
-
-                            const { data: { publicUrl } } = supabase
-                                .storage
-                                .from('store-assets')
-                                .getPublicUrl(fileName);
-
+                            const { data: { publicUrl } } = supabase.storage.from('store-assets').getPublicUrl(fileName);
                             qrisUrl = publicUrl;
-                        }
-
-                        if (this.ownerAvatarFile) {
-                            const fileExt = this.ownerAvatarFile.name.split('.').pop();
-                            const fileName = `avatar-${Date.now()}.${fileExt}`;
-
-                            const { error: uploadError } = await supabase
-                                .storage
-                                .from('store-assets')
-                                .upload(fileName, this.ownerAvatarFile);
-
-                            if (uploadError) throw uploadError;
-
-                            const { data: { publicUrl } } = supabase
-                                .storage
-                                .from('store-assets')
-                                .getPublicUrl(fileName);
-
-                            ownerAvatarUrl = publicUrl;
                         }
 
                         if (this.storeLogoFile) {
                             const fileExt = this.storeLogoFile.name.split('.').pop();
                             const fileName = `logo-${Date.now()}.${fileExt}`;
-
-                            const { error: uploadError } = await supabase
-                                .storage
-                                .from('store-assets')
-                                .upload(fileName, this.storeLogoFile);
-
+                            const { error: uploadError } = await supabase.storage.from('store-assets').upload(fileName, this.storeLogoFile);
                             if (uploadError) throw uploadError;
-
-                            const { data: { publicUrl } } = supabase
-                                .storage
-                                .from('store-assets')
-                                .getPublicUrl(fileName);
-
+                            const { data: { publicUrl } } = supabase.storage.from('store-assets').getPublicUrl(fileName);
                             storeLogoUrl = publicUrl;
+                        }
+
+                        // Upload banner images
+                        let bannerUrls = this.bannerPreviews.filter(url => !url.startsWith('blob:'));
+                        for (const bannerFile of this.bannerFiles) {
+                            if (bannerFile.type.startsWith('image/')) {
+                                const fileExt = bannerFile.name.split('.').pop();
+                                const fileName = `banner-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${fileExt}`;
+                                const { error: uploadError } = await supabase.storage.from('store-assets').upload(fileName, bannerFile);
+                                if (uploadError) throw uploadError;
+                                const { data: { publicUrl } } = supabase.storage.from('store-assets').getPublicUrl(fileName);
+                                bannerUrls.push(publicUrl);
+                            }
                         }
 
                         const { error } = await supabase
@@ -2076,8 +2104,8 @@
                             .update({
                                 ...this.settingsForm,
                                 qris_image_url: qrisUrl,
-                                owner_avatar_url: ownerAvatarUrl,
                                 store_logo_url: storeLogoUrl,
+                                banner_urls: bannerUrls,
                                 updated_at: new Date().toISOString()
                             })
                             .eq('id', 1);
@@ -2085,10 +2113,11 @@
                         if (error) throw error;
 
                         this.settingsForm.qris_image_url = qrisUrl;
-                        this.settingsForm.owner_avatar_url = ownerAvatarUrl;
                         this.settingsForm.store_logo_url = storeLogoUrl;
+                        this.settingsForm.banner_urls = bannerUrls;
+                        this.bannerPreviews = [...bannerUrls];
+                        this.bannerFiles = [];
                         this.qrisFile = null;
-                        this.ownerAvatarFile = null;
                         this.storeLogoFile = null;
                         this.showToast('Pengaturan berhasil disimpan');
                     } catch (error) {
