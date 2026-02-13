@@ -484,7 +484,8 @@
         <!-- ==================== PRODUCT DETAIL PAGE ==================== -->
         <div x-show="currentPage === 'product-detail'" x-transition class="min-h-screen">
             <div class="sticky top-0 z-30 bg-white/80 backdrop-blur-sm px-4 py-3 border-b border-gray-100">
-                <button @click="currentPage = 'home'"
+                <button
+                    @click="currentPage = 'home'; selectedProduct = null; const u1 = new URL(window.location); u1.searchParams.delete('product'); window.history.pushState({}, '', u1);"
                     class="flex items-center gap-2 text-text hover:text-primary transition-colors"><i
                         data-lucide="arrow-left" class="w-5 h-5"></i><span class="font-medium">Kembali</span></button>
             </div>
@@ -565,7 +566,8 @@
         <!-- ==================== CHECKOUT PAGE ==================== -->
         <div x-show="currentPage === 'checkout'" x-transition class="min-h-screen">
             <div class="sticky top-0 z-30 bg-white/80 backdrop-blur-sm px-4 py-3 border-b border-gray-100">
-                <button @click="currentPage = 'home'"
+                <button
+                    @click="currentPage = 'home'; selectedProduct = null; const u2 = new URL(window.location); u2.searchParams.delete('product'); window.history.pushState({}, '', u2);"
                     class="flex items-center gap-2 text-text hover:text-primary transition-colors"><i
                         data-lucide="arrow-left" class="w-5 h-5"></i><span class="font-medium">Kembali</span></button>
             </div>
@@ -944,6 +946,32 @@
                     this.isLoading = false;
                     this.$nextTick(() => { try { lucide.createIcons(); } catch (e) { console.error('Lucide init error:', e); } });
 
+                    // Check for product URL parameter
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const productId = urlParams.get('product');
+                    if (productId) {
+                        const product = this.products.find(p => String(p.id) === productId);
+                        if (product) {
+                            this.selectedProduct = product;
+                            this.currentPage = 'product-detail';
+                            this.$nextTick(() => { try { lucide.createIcons(); } catch (e) { } });
+                        }
+                    }
+
+                    // Handle browser back/forward
+                    window.addEventListener('popstate', () => {
+                        const params = new URLSearchParams(window.location.search);
+                        const pid = params.get('product');
+                        if (pid) {
+                            const p = this.products.find(pr => String(pr.id) === pid);
+                            if (p) { this.selectedProduct = p; this.currentPage = 'product-detail'; }
+                        } else {
+                            this.currentPage = 'home';
+                            this.selectedProduct = null;
+                        }
+                        this.$nextTick(() => { try { lucide.createIcons(); } catch (e) { } });
+                    });
+
                     supabase.auth.onAuthStateChange((event, session) => {
                         if (event === 'SIGNED_IN') { this.user = session.user; this.loadProfile(); }
                         else if (event === 'SIGNED_OUT') { this.user = null; this.profile = null; }
@@ -1025,7 +1053,7 @@
                     this.filteredProducts = result;
                 },
 
-                openProductDetail(product) { this.selectedProduct = product; this.trackViewContent(product); this.currentPage = 'product-detail'; window.scrollTo(0, 0); this.$nextTick(() => { try { lucide.createIcons(); } catch (e) { } }); },
+                openProductDetail(product) { this.selectedProduct = product; this.trackViewContent(product); this.currentPage = 'product-detail'; window.scrollTo(0, 0); const url = new URL(window.location); url.searchParams.set('product', product.id); window.history.pushState({}, '', url); this.$nextTick(() => { try { lucide.createIcons(); } catch (e) { } }); },
                 scrollToProducts() { document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' }); },
 
                 addToCart(product, quantity = 1) {
