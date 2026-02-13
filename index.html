@@ -284,7 +284,7 @@
         <div x-show="currentPage === 'home'" x-transition>
             <!-- Banner Slider (Dynamic from storeSettings.banner_urls) -->
             <div class="px-4 pt-4"
-                x-data="{ currentBanner: 0, bannerInterval: null, bannerCount() { return (storeSettings.banner_urls && storeSettings.banner_urls.length > 0) ? storeSettings.banner_urls.length : 1; }, getBannerImage(b) { return typeof b === 'object' ? b.image : b; }, getBannerLink(b) { return typeof b === 'object' ? (b.link || '') : ''; } }"
+                x-data="{ currentBanner: 0, bannerInterval: null, bannerCount() { return (storeSettings.banner_urls && storeSettings.banner_urls.length > 0) ? storeSettings.banner_urls.length : 1; }, getBannerImage(b) { return typeof b === 'object' ? b.image : b; }, getBannerLink(b) { let link = typeof b === 'object' ? (b.link || '') : ''; if (link && !link.match(/^https?:\/\//i)) { link = 'https://' + link; } return link; } }"
                 x-init="bannerInterval = setInterval(() => { currentBanner = (currentBanner + 1) % bannerCount() }, 4000)"
                 @mouseenter="clearInterval(bannerInterval)"
                 @mouseleave="bannerInterval = setInterval(() => { currentBanner = (currentBanner + 1) % bannerCount() }, 4000)">
