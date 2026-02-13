@@ -20,7 +20,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Panel - Creative Maven</title>
+    <title>Admin Panel - Toko Digital</title>
 
     <!-- Google Fonts - Work Sans -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -207,7 +207,7 @@
                     </div>
                     <div>
                         <p class="font-bold text-lg">Admin Panel</p>
-                        <p class="text-xs text-muted">Creative Maven</p>
+                        <p class="text-xs text-muted" x-text="settingsForm.store_name || 'Toko Digital'"></p>
                     </div>
                 </div>
             </div>
@@ -740,6 +740,37 @@
                                     class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"></textarea>
                             </div>
 
+                            <!-- Store Logo Upload -->
+                            <div class="md:col-span-2 mt-2">
+                                <label class="block text-sm font-medium text-gray-700 mb-1.5">Logo Toko</label>
+                                <div class="flex items-center gap-4">
+                                    <div
+                                        class="relative w-16 h-16 bg-gray-100 rounded-xl overflow-hidden border border-gray-200 flex items-center justify-center">
+                                        <template x-if="storeLogoPreview || settingsForm.store_logo_url">
+                                            <img :src="storeLogoPreview || settingsForm.store_logo_url"
+                                                class="w-full h-full object-contain">
+                                        </template>
+                                        <template x-if="!storeLogoPreview && !settingsForm.store_logo_url">
+                                            <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+                                                <i data-lucide="zap" class="w-5 h-5 text-white"></i>
+                                            </div>
+                                        </template>
+                                    </div>
+                                    <div class="flex-1">
+                                        <div class="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center hover:border-primary/50 transition-colors cursor-pointer"
+                                            @click="$refs.storeLogoInput.click()">
+                                            <input type="file" x-ref="storeLogoInput"
+                                                @change="handleStoreLogoUpload($event)" accept="image/*" class="hidden">
+                                            <div class="flex items-center justify-center gap-2 text-sm text-gray-500">
+                                                <i data-lucide="upload" class="w-4 h-4"></i>
+                                                <span>Upload Logo Toko</span>
+                                            </div>
+                                            <p class="text-xs text-gray-400 mt-1">PNG transparan, JPG max 2MB</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
                             <!-- Owner Avatar Upload -->
                             <div class="md:col-span-2 mt-2">
                                 <label class="block text-sm font-medium text-gray-700 mb-1.5">Foto Profil Owner</label>
@@ -1256,6 +1287,8 @@
                 qrisPreview: null,
                 ownerAvatarFile: null,
                 ownerAvatarPreview: null,
+                storeLogoFile: null,
+                storeLogoPreview: null,
                 savingSettings: false,
 
                 // Charts
@@ -1817,8 +1850,8 @@
                             imageUrl = publicUrl;
                         }
 
-                        // Upload digital file if selected (hanya jika tidak ada link manual)
-                        if (!fileUrl && this.productDigitalFile) {
+                        // Upload digital file if selected (file upload takes priority over manual link)
+                        if (this.productDigitalFile) {
                             const fileExt = this.productDigitalFile.name.split('.').pop();
                             const fileName = `file-${Date.now()}.${fileExt}`;
 
@@ -1965,12 +1998,21 @@
                     }
                 },
 
+                handleStoreLogoUpload(event) {
+                    const file = event.target.files[0];
+                    if (file) {
+                        this.storeLogoFile = file;
+                        this.storeLogoPreview = URL.createObjectURL(file);
+                    }
+                },
+
                 async saveSettings() {
                     this.savingSettings = true;
 
                     try {
                         let qrisUrl = this.settingsForm.qris_image_url;
                         let ownerAvatarUrl = this.settingsForm.owner_avatar_url;
+                        let storeLogoUrl = this.settingsForm.store_logo_url;
 
                         if (this.qrisFile) {
                             const fileExt = this.qrisFile.name.split('.').pop();
@@ -2010,12 +2052,32 @@
                             ownerAvatarUrl = publicUrl;
                         }
 
+                        if (this.storeLogoFile) {
+                            const fileExt = this.storeLogoFile.name.split('.').pop();
+                            const fileName = `logo-${Date.now()}.${fileExt}`;
+
+                            const { error: uploadError } = await supabase
+                                .storage
+                                .from('store-assets')
+                                .upload(fileName, this.storeLogoFile);
+
+                            if (uploadError) throw uploadError;
+
+                            const { data: { publicUrl } } = supabase
+                                .storage
+                                .from('store-assets')
+                                .getPublicUrl(fileName);
+
+                            storeLogoUrl = publicUrl;
+                        }
+
                         const { error } = await supabase
                             .from('store_settings')
                             .update({
                                 ...this.settingsForm,
                                 qris_image_url: qrisUrl,
                                 owner_avatar_url: ownerAvatarUrl,
+                                store_logo_url: storeLogoUrl,
                                 updated_at: new Date().toISOString()
                             })
                             .eq('id', 1);
@@ -2024,8 +2086,10 @@
 
                         this.settingsForm.qris_image_url = qrisUrl;
                         this.settingsForm.owner_avatar_url = ownerAvatarUrl;
+                        this.settingsForm.store_logo_url = storeLogoUrl;
                         this.qrisFile = null;
                         this.ownerAvatarFile = null;
+                        this.storeLogoFile = null;
                         this.showToast('Pengaturan berhasil disimpan');
                     } catch (error) {
                         console.error('Error saving settings:', error);

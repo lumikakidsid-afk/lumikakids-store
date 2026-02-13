@@ -534,3 +534,84 @@ ALTER TABLE products ADD COLUMN IF NOT EXISTS youtube_url TEXT DEFAULT '';
 --
 -- SUPERADMIN: User pertama yang mendaftar otomatis menjadi admin.
 -- Untuk menambahkan admin lain, jalankan: SELECT promote_to_admin('email@contoh.com');
+
+-- ============================================================
+-- 14. STORAGE BUCKET POLICIES (WAJIB untuk upload)
+-- ============================================================
+-- JALANKAN QUERY INI DI SQL EDITOR SUPABASE
+-- Pastikan bucket sudah dibuat di Storage:
+-- product-images (public), product-files (private), store-assets (public), payment-proofs (private)
+
+-- -------- product-images (Public bucket) --------
+-- Semua orang bisa lihat gambar produk
+INSERT INTO storage.policies (name, bucket_id, operation, definition)
+SELECT 'Public read product-images', 'product-images', 'SELECT', 'true'
+WHERE NOT EXISTS (SELECT 1 FROM storage.policies WHERE name = 'Public read product-images' AND bucket_id = 'product-images');
+
+-- Admin bisa upload gambar produk
+INSERT INTO storage.policies (name, bucket_id, operation, definition)
+SELECT 'Admin upload product-images', 'product-images', 'INSERT', '(EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = ''admin''))'
+WHERE NOT EXISTS (SELECT 1 FROM storage.policies WHERE name = 'Admin upload product-images' AND bucket_id = 'product-images');
+
+-- Admin bisa update gambar produk
+INSERT INTO storage.policies (name, bucket_id, operation, definition)
+SELECT 'Admin update product-images', 'product-images', 'UPDATE', '(EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = ''admin''))'
+WHERE NOT EXISTS (SELECT 1 FROM storage.policies WHERE name = 'Admin update product-images' AND bucket_id = 'product-images');
+
+-- Admin bisa hapus gambar produk
+INSERT INTO storage.policies (name, bucket_id, operation, definition)
+SELECT 'Admin delete product-images', 'product-images', 'DELETE', '(EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = ''admin''))'
+WHERE NOT EXISTS (SELECT 1 FROM storage.policies WHERE name = 'Admin delete product-images' AND bucket_id = 'product-images');
+
+-- -------- product-files (Private bucket) --------
+-- Admin bisa upload file digital
+INSERT INTO storage.policies (name, bucket_id, operation, definition)
+SELECT 'Admin upload product-files', 'product-files', 'INSERT', '(EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = ''admin''))'
+WHERE NOT EXISTS (SELECT 1 FROM storage.policies WHERE name = 'Admin upload product-files' AND bucket_id = 'product-files');
+
+-- Admin bisa update file digital
+INSERT INTO storage.policies (name, bucket_id, operation, definition)
+SELECT 'Admin update product-files', 'product-files', 'UPDATE', '(EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = ''admin''))'
+WHERE NOT EXISTS (SELECT 1 FROM storage.policies WHERE name = 'Admin update product-files' AND bucket_id = 'product-files');
+
+-- Admin bisa hapus file digital
+INSERT INTO storage.policies (name, bucket_id, operation, definition)
+SELECT 'Admin delete product-files', 'product-files', 'DELETE', '(EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = ''admin''))'
+WHERE NOT EXISTS (SELECT 1 FROM storage.policies WHERE name = 'Admin delete product-files' AND bucket_id = 'product-files');
+
+-- -------- store-assets (Public bucket) --------
+-- Semua orang bisa lihat assets toko
+INSERT INTO storage.policies (name, bucket_id, operation, definition)
+SELECT 'Public read store-assets', 'store-assets', 'SELECT', 'true'
+WHERE NOT EXISTS (SELECT 1 FROM storage.policies WHERE name = 'Public read store-assets' AND bucket_id = 'store-assets');
+
+-- Admin bisa upload assets toko
+INSERT INTO storage.policies (name, bucket_id, operation, definition)
+SELECT 'Admin upload store-assets', 'store-assets', 'INSERT', '(EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = ''admin''))'
+WHERE NOT EXISTS (SELECT 1 FROM storage.policies WHERE name = 'Admin upload store-assets' AND bucket_id = 'store-assets');
+
+-- Admin bisa update assets toko
+INSERT INTO storage.policies (name, bucket_id, operation, definition)
+SELECT 'Admin update store-assets', 'store-assets', 'UPDATE', '(EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = ''admin''))'
+WHERE NOT EXISTS (SELECT 1 FROM storage.policies WHERE name = 'Admin update store-assets' AND bucket_id = 'store-assets');
+
+-- Admin bisa hapus assets toko
+INSERT INTO storage.policies (name, bucket_id, operation, definition)
+SELECT 'Admin delete store-assets', 'store-assets', 'DELETE', '(EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = ''admin''))'
+WHERE NOT EXISTS (SELECT 1 FROM storage.policies WHERE name = 'Admin delete store-assets' AND bucket_id = 'store-assets');
+
+-- -------- payment-proofs (Private bucket) --------
+-- User yang login bisa upload bukti bayar
+INSERT INTO storage.policies (name, bucket_id, operation, definition)
+SELECT 'Authenticated upload payment-proofs', 'payment-proofs', 'INSERT', '(auth.uid() IS NOT NULL)'
+WHERE NOT EXISTS (SELECT 1 FROM storage.policies WHERE name = 'Authenticated upload payment-proofs' AND bucket_id = 'payment-proofs');
+
+-- Admin bisa lihat semua bukti bayar
+INSERT INTO storage.policies (name, bucket_id, operation, definition)
+SELECT 'Admin read payment-proofs', 'payment-proofs', 'SELECT', '(EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = ''admin''))'
+WHERE NOT EXISTS (SELECT 1 FROM storage.policies WHERE name = 'Admin read payment-proofs' AND bucket_id = 'payment-proofs');
+
+-- Admin bisa hapus bukti bayar
+INSERT INTO storage.policies (name, bucket_id, operation, definition)
+SELECT 'Admin delete payment-proofs', 'payment-proofs', 'DELETE', '(EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = ''admin''))'
+WHERE NOT EXISTS (SELECT 1 FROM storage.policies WHERE name = 'Admin delete payment-proofs' AND bucket_id = 'payment-proofs');
