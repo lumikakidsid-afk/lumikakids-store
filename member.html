@@ -768,7 +768,7 @@
                         .select(`
                             *,
                             order:orders!inner(status, user_id),
-                            product:products(youtube_url, image_url)
+                            product:products(youtube_url, image_url, file_url)
                         `)
                         .eq('order.status', 'completed')
                         .eq('order.user_id', this.user.id);
@@ -780,7 +780,8 @@
                         this.purchasedProducts = (data || []).map(item => ({
                             ...item,
                             youtube_url: item.product?.youtube_url || '',
-                            image_url: item.product?.image_url || item.image_url || ''
+                            image_url: item.product?.image_url || item.image_url || '',
+                            file_url: item.file_url || item.product?.file_url || ''
                         }));
                     }
 

@@ -1068,6 +1068,38 @@
                         <label class="block text-sm font-medium text-gray-700">File Produk Digital</label>
                         <p class="text-xs text-muted">Pilih salah satu: paste link atau upload file</p>
 
+                        <!-- Current File Preview -->
+                        <div x-show="productForm.file_url && !productDigitalFile"
+                            class="bg-gray-50 border border-gray-200 rounded-xl p-3">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+                                    :class="productForm.file_url.startsWith('http') ? 'bg-blue-100' : 'bg-green-100'">
+                                    <i :data-lucide="productForm.file_url.startsWith('http') ? 'link' : 'file'"
+                                        class="w-5 h-5"
+                                        :class="productForm.file_url.startsWith('http') ? 'text-blue-600' : 'text-green-600'"></i>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm font-medium text-gray-700 truncate" x-text="productForm.file_url">
+                                    </p>
+                                    <p class="text-xs text-gray-400"
+                                        x-text="productForm.file_url.startsWith('http') ? 'Link Eksternal' : 'File di Storage'">
+                                    </p>
+                                </div>
+                                <div class="flex items-center gap-1 flex-shrink-0">
+                                    <button type="button" @click.stop="previewProductFile()"
+                                        class="p-2 hover:bg-blue-100 rounded-lg text-blue-600 transition-colors"
+                                        title="Buka/Preview File">
+                                        <i data-lucide="external-link" class="w-4 h-4"></i>
+                                    </button>
+                                    <button type="button" @click.stop="removeProductFile()"
+                                        class="p-2 hover:bg-red-100 rounded-lg text-red-500 transition-colors"
+                                        title="Hapus File">
+                                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Option 1: Link Eksternal -->
                         <div>
                             <label class="block text-xs font-medium text-gray-500 mb-1">Link File (Google Drive,
@@ -1090,7 +1122,13 @@
                             @click="$refs.productFileInput.click()">
                             <input type="file" x-ref="productFileInput" @change="handleProductFile($event)"
                                 class="hidden">
-                            <p class="text-sm text-gray-500" x-text="productFileName || 'Klik untuk upload file'"></p>
+                            <div x-show="productDigitalFile"
+                                class="flex items-center justify-center gap-2 text-sm text-green-600">
+                                <i data-lucide="check-circle" class="w-4 h-4"></i>
+                                <span x-text="productFileName"></span>
+                                <span class="text-xs text-gray-400">(file baru dipilih)</span>
+                            </div>
+                            <p x-show="!productDigitalFile" class="text-sm text-gray-500">Klik untuk upload file</p>
                         </div>
                     </div>
 
@@ -1895,7 +1933,7 @@
                     }
                     this.productImageFiles = [];
                     this.productDigitalFile = null;
-                    this.productFileName = null;
+                    this.productFileName = product?.file_url || null;
                     this.showProductModal = true;
                     this.$nextTick(() => lucide.createIcons());
                 },
@@ -1934,6 +1972,34 @@
                         this.productFileName = file.name;
                         this.productDigitalFile = file;
                     }
+                },
+
+                async previewProductFile() {
+                    const fileUrl = this.productForm.file_url;
+                    if (!fileUrl) return;
+
+                    if (fileUrl.startsWith('http')) {
+                        window.open(fileUrl, '_blank');
+                    } else {
+                        try {
+                            const { data, error } = await supabase
+                                .storage
+                                .from('product-files')
+                                .createSignedUrl(fileUrl, 300);
+
+                            if (error) throw error;
+                            window.open(data.signedUrl, '_blank');
+                        } catch (err) {
+                            console.error('Error previewing file:', err);
+                            this.showToast('Gagal membuka file preview', 'error');
+                        }
+                    }
+                },
+
+                removeProductFile() {
+                    this.productForm.file_url = '';
+                    this.productDigitalFile = null;
+                    this.productFileName = null;
                 },
 
                 async saveProduct() {

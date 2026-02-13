@@ -588,6 +588,11 @@ INSERT INTO storage.policies (name, bucket_id, operation, definition)
 SELECT 'Admin update product-files', 'product-files', 'UPDATE', '(EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = ''admin''))'
 WHERE NOT EXISTS (SELECT 1 FROM storage.policies WHERE name = 'Admin update product-files' AND bucket_id = 'product-files');
 
+-- Authenticated users bisa download file digital (via signed URL)
+INSERT INTO storage.policies (name, bucket_id, operation, definition)
+SELECT 'Authenticated read product-files', 'product-files', 'SELECT', '(auth.uid() IS NOT NULL)'
+WHERE NOT EXISTS (SELECT 1 FROM storage.policies WHERE name = 'Authenticated read product-files' AND bucket_id = 'product-files');
+
 -- Admin bisa hapus file digital
 INSERT INTO storage.policies (name, bucket_id, operation, definition)
 SELECT 'Admin delete product-files', 'product-files', 'DELETE', '(EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = ''admin''))'
