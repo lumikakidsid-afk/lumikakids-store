@@ -284,7 +284,7 @@
         <div x-show="currentPage === 'home'" x-transition>
             <!-- Banner Slider (Dynamic from storeSettings.banner_urls) -->
             <div class="px-4 pt-4"
-                x-data="{ currentBanner: 0, bannerInterval: null, bannerCount() { return (storeSettings.banner_urls && storeSettings.banner_urls.length > 0) ? storeSettings.banner_urls.length : 1; } }"
+                x-data="{ currentBanner: 0, bannerInterval: null, bannerCount() { return (storeSettings.banner_urls && storeSettings.banner_urls.length > 0) ? storeSettings.banner_urls.length : 1; }, getBannerImage(b) { return typeof b === 'object' ? b.image : b; }, getBannerLink(b) { return typeof b === 'object' ? (b.link || '') : ''; } }"
                 x-init="bannerInterval = setInterval(() => { currentBanner = (currentBanner + 1) % bannerCount() }, 4000)"
                 @mouseenter="clearInterval(bannerInterval)"
                 @mouseleave="bannerInterval = setInterval(() => { currentBanner = (currentBanner + 1) % bannerCount() }, 4000)">
@@ -292,12 +292,21 @@
                     <div class="banner-track" :style="'transform: translateX(-' + (currentBanner * 100) + '%)'">
                         <!-- Dynamic Banners -->
                         <template x-if="storeSettings.banner_urls && storeSettings.banner_urls.length > 0">
-                            <template x-for="(bannerUrl, idx) in storeSettings.banner_urls" :key="idx">
+                            <template x-for="(bannerItem, idx) in storeSettings.banner_urls" :key="idx">
                                 <div class="banner-slide">
-                                    <div class="rounded-2xl overflow-hidden aspect-[16/7]">
-                                        <img :src="bannerUrl" :alt="'Banner ' + (idx+1)"
-                                            class="w-full h-full object-cover">
-                                    </div>
+                                    <template x-if="getBannerLink(bannerItem)">
+                                        <a :href="getBannerLink(bannerItem)" target="_blank" rel="noopener noreferrer"
+                                            class="block rounded-2xl overflow-hidden aspect-[16/7]">
+                                            <img :src="getBannerImage(bannerItem)" :alt="'Banner ' + (idx+1)"
+                                                class="w-full h-full object-cover hover:scale-105 transition-transform duration-300">
+                                        </a>
+                                    </template>
+                                    <template x-if="!getBannerLink(bannerItem)">
+                                        <div class="rounded-2xl overflow-hidden aspect-[16/7]">
+                                            <img :src="getBannerImage(bannerItem)" :alt="'Banner ' + (idx+1)"
+                                                class="w-full h-full object-cover">
+                                        </div>
+                                    </template>
                                 </div>
                             </template>
                         </template>

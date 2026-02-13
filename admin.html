@@ -775,20 +775,33 @@
                             <div class="md:col-span-2 mt-4">
                                 <label class="block text-sm font-medium text-gray-700 mb-1.5">Banner Slider <span
                                         class="text-xs text-gray-400">(max 5 banner, ukuran flexible)</span></label>
-                                <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                <div class="space-y-3">
                                     <template x-for="(banner, idx) in bannerPreviews" :key="idx">
                                         <div
-                                            class="relative group aspect-video border-2 border-gray-200 rounded-xl overflow-hidden">
-                                            <img :src="banner" class="w-full h-full object-cover">
-                                            <button type="button" @click="removeBanner(idx)"
-                                                class="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">&times;</button>
-                                            <span
-                                                class="absolute bottom-1 left-1 bg-black/50 text-white text-xs px-2 py-0.5 rounded"
-                                                x-text="'Banner ' + (idx+1)"></span>
+                                            class="flex gap-3 items-start bg-gray-50 rounded-xl p-3 border border-gray-100">
+                                            <div
+                                                class="relative group w-32 h-20 flex-shrink-0 border-2 border-gray-200 rounded-lg overflow-hidden">
+                                                <img :src="banner" class="w-full h-full object-cover">
+                                                <button type="button" @click="removeBanner(idx)"
+                                                    class="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-xs">&times;</button>
+                                                <span
+                                                    class="absolute bottom-0.5 left-0.5 bg-black/50 text-white text-[10px] px-1.5 py-0.5 rounded"
+                                                    x-text="'#' + (idx+1)"></span>
+                                            </div>
+                                            <div class="flex-1 min-w-0">
+                                                <label class="block text-xs text-gray-500 mb-1">Link tujuan
+                                                    (opsional)</label>
+                                                <input type="url" :value="bannerLinks[idx] || ''"
+                                                    @input="bannerLinks[idx] = $event.target.value"
+                                                    placeholder="https://contoh.com/promo"
+                                                    class="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50">
+                                                <p class="text-[10px] text-gray-400 mt-0.5">Kosongkan jika tidak perlu
+                                                    link</p>
+                                            </div>
                                         </div>
                                     </template>
                                     <div x-show="bannerPreviews.length < 5"
-                                        class="aspect-video border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-primary/50 transition-colors"
+                                        class="aspect-video max-w-[200px] border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-primary/50 transition-colors"
                                         @click="$refs.bannerInput.click()">
                                         <input type="file" x-ref="bannerInput" @change="handleBannerUpload($event)"
                                             accept="image/*" multiple class="hidden">
@@ -797,8 +810,8 @@
                                             x-text="bannerPreviews.length + '/5 banner'"></span>
                                     </div>
                                 </div>
-                                <p class="text-xs text-gray-400 mt-2">Upload gambar banner untuk slider di halaman
-                                    utama.</p>
+                                <p class="text-xs text-gray-400 mt-2">Upload gambar banner untuk slider. Tambahkan link
+                                    agar banner bisa diklik.</p>
                             </div>
                         </div>
                     </div>
@@ -1299,6 +1312,7 @@
                 qrisPreview: null,
                 bannerFiles: [],
                 bannerPreviews: [],
+                bannerLinks: [],
                 storeLogoFile: null,
                 storeLogoPreview: null,
                 savingSettings: false,
@@ -1766,7 +1780,8 @@
                     if (data) {
                         this.settingsForm = { ...data };
                         if (data.banner_urls && Array.isArray(data.banner_urls)) {
-                            this.bannerPreviews = [...data.banner_urls];
+                            this.bannerPreviews = data.banner_urls.map(b => typeof b === 'object' ? b.image : b);
+                            this.bannerLinks = data.banner_urls.map(b => typeof b === 'object' ? (b.link || '') : '');
                         }
                     }
                 },
@@ -2039,6 +2054,7 @@
                         if (file.type.startsWith('image/')) {
                             this.bannerFiles.push(file);
                             this.bannerPreviews.push(URL.createObjectURL(file));
+                            this.bannerLinks.push('');
                         }
                     });
                     event.target.value = '';
@@ -2051,6 +2067,7 @@
                         this.bannerFiles.splice(idx - existingCount, 1);
                     }
                     this.bannerPreviews.splice(idx, 1);
+                    this.bannerLinks.splice(idx, 1);
                 },
 
                 handleStoreLogoUpload(event) {
@@ -2086,8 +2103,9 @@
                             storeLogoUrl = publicUrl;
                         }
 
-                        // Upload banner images
-                        let bannerUrls = this.bannerPreviews.filter(url => !url.startsWith('blob:'));
+                        // Upload banner images and build banner_urls as objects
+                        let existingImageUrls = this.bannerPreviews.filter(url => !url.startsWith('blob:'));
+                        let allImageUrls = [...existingImageUrls];
                         for (const bannerFile of this.bannerFiles) {
                             if (bannerFile.type.startsWith('image/')) {
                                 const fileExt = bannerFile.name.split('.').pop();
@@ -2095,9 +2113,15 @@
                                 const { error: uploadError } = await supabase.storage.from('store-assets').upload(fileName, bannerFile);
                                 if (uploadError) throw uploadError;
                                 const { data: { publicUrl } } = supabase.storage.from('store-assets').getPublicUrl(fileName);
-                                bannerUrls.push(publicUrl);
+                                allImageUrls.push(publicUrl);
                             }
                         }
+
+                        // Build banner_urls as array of objects {image, link}
+                        const bannerUrlsData = allImageUrls.map((imgUrl, idx) => ({
+                            image: imgUrl,
+                            link: this.bannerLinks[idx] || ''
+                        }));
 
                         const { error } = await supabase
                             .from('store_settings')
@@ -2105,7 +2129,7 @@
                                 ...this.settingsForm,
                                 qris_image_url: qrisUrl,
                                 store_logo_url: storeLogoUrl,
-                                banner_urls: bannerUrls,
+                                banner_urls: bannerUrlsData,
                                 updated_at: new Date().toISOString()
                             })
                             .eq('id', 1);
@@ -2114,8 +2138,9 @@
 
                         this.settingsForm.qris_image_url = qrisUrl;
                         this.settingsForm.store_logo_url = storeLogoUrl;
-                        this.settingsForm.banner_urls = bannerUrls;
-                        this.bannerPreviews = [...bannerUrls];
+                        this.settingsForm.banner_urls = bannerUrlsData;
+                        this.bannerPreviews = allImageUrls;
+                        this.bannerLinks = bannerUrlsData.map(b => b.link || '');
                         this.bannerFiles = [];
                         this.qrisFile = null;
                         this.storeLogoFile = null;
