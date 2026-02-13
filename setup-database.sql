@@ -542,6 +542,14 @@ ALTER TABLE products ADD COLUMN IF NOT EXISTS image_urls JSONB DEFAULT '[]';
 ALTER TABLE store_settings ADD COLUMN IF NOT EXISTS banner_urls JSONB DEFAULT '[]';
 
 -- ============================================================
+-- 13C. SOCIAL MEDIA COLUMNS
+-- ============================================================
+ALTER TABLE store_settings ADD COLUMN IF NOT EXISTS tiktok_url TEXT DEFAULT '';
+ALTER TABLE store_settings ADD COLUMN IF NOT EXISTS youtube_url TEXT DEFAULT '';
+ALTER TABLE store_settings ADD COLUMN IF NOT EXISTS facebook_url TEXT DEFAULT '';
+ALTER TABLE store_settings ADD COLUMN IF NOT EXISTS twitter_url TEXT DEFAULT '';
+
+-- ============================================================
 -- 14. STORAGE BUCKET POLICIES (WAJIB untuk upload)
 -- ============================================================
 -- JALANKAN QUERY INI DI SQL EDITOR SUPABASE
