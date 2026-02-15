@@ -871,8 +871,21 @@
                 },
 
                 showOrderDetailModal(order) {
-                    this.selectedOrder = order;
+                    this.selectedOrder = { ...order };
                     this.showOrderDetail = true;
+                    // Generate signed URL for payment proof from private bucket
+                    if (order.payment_proof_url) {
+                        let filePath = order.payment_proof_url;
+                        if (filePath.includes('/payment-proofs/')) {
+                            filePath = filePath.split('/payment-proofs/').pop().split('?')[0];
+                        }
+                        supabase.storage.from('payment-proofs').createSignedUrl(filePath, 3600)
+                            .then(({ data, error }) => {
+                                if (!error && data?.signedUrl) {
+                                    this.selectedOrder = { ...this.selectedOrder, payment_proof_url: data.signedUrl };
+                                }
+                            });
+                    }
                     this.$nextTick(() => lucide.createIcons());
                 },
 
@@ -906,16 +919,18 @@
                         return;
                     }
 
-                    // Get public URL
-                    const { data: { publicUrl } } = supabase
+                    // Get signed URL (private bucket)
+                    const { data: signedData, error: signErr } = await supabase
                         .storage
                         .from('payment-proofs')
-                        .getPublicUrl(fileName);
+                        .createSignedUrl(fileName, 60 * 60 * 24 * 365);
+
+                    const proofUrl = signErr ? fileName : signedData.signedUrl;
 
                     // Update order
                     const { error: updateError } = await supabase
                         .from('orders')
-                        .update({ payment_proof_url: publicUrl })
+                        .update({ payment_proof_url: proofUrl })
                         .eq('id', this.selectedOrder.id);
 
                     if (updateError) {
@@ -925,7 +940,7 @@
                     }
 
                     // Update local state
-                    this.selectedOrder.payment_proof_url = publicUrl;
+                    this.selectedOrder = { ...this.selectedOrder, payment_proof_url: proofUrl };
 
                     // Refresh orders list
                     await this.loadOrders();
