@@ -929,6 +929,7 @@
                 featuredProducts: [],
                 selectedCategory: 'all',
                 availableCategories: [],
+                categories: [],
                 searchQuery: '',
                 selectedProduct: null,
                 cart: [],
@@ -952,14 +953,16 @@
 
                 async init() {
                     try {
-                        await Promise.all([this.loadProducts(), this.loadStoreSettings(), this.checkAuth(), this.loadCustomerCount()]);
+                        await Promise.all([this.loadProducts(), this.loadStoreSettings(), this.checkAuth(), this.loadCustomerCount(), this.loadCategories()]);
                     } catch (err) {
                         console.error('Init error:', err);
                     }
                     this.loadCart();
                     this.filteredProducts = this.products;
                     this.featuredProducts = this.products.filter(p => p.featured);
-                    this.availableCategories = [...new Set(this.products.map(p => p.category).filter(c => c && c.trim() !== ''))];
+                    this.availableCategories = this.categories.length > 0
+                        ? this.categories.map(c => c.slug)
+                        : [...new Set(this.products.map(p => p.category).filter(c => c && c.trim() !== ''))];
                     this.isLoading = false;
                     this.$nextTick(() => { try { lucide.createIcons(); } catch (e) { console.error('Lucide init error:', e); } });
 
@@ -1202,8 +1205,13 @@
                     return [...new Set(cats)];
                 },
                 getCategoryLabel(cat) {
-                    const labels = { 'ebook': 'Ebook', 'video': 'Video', 'template': 'Template', 'workshop': 'Workshop', 'fisik': 'Produk Fisik' };
-                    return labels[cat] || cat;
+                    const found = this.categories.find(c => c.slug === cat);
+                    if (found) return found.label;
+                    return cat;
+                },
+                async loadCategories() {
+                    const { data } = await supabase.from('categories').select('*').order('sort_order', { ascending: true });
+                    this.categories = data || [];
                 },
                 getYouTubeEmbedUrl(url) {
                     if (!url) return null;

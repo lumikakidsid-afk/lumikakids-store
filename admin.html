@@ -954,6 +954,134 @@
                         <i x-show="!savingSettings" data-lucide="save" class="w-5 h-5"></i>
                         <span x-text="savingSettings ? 'Menyimpan...' : 'Simpan Pengaturan'"></span>
                     </button>
+
+                    <!-- Category Management -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <div class="flex items-center justify-between mb-5">
+                            <div>
+                                <h2 class="font-bold text-lg">Kelola Kategori</h2>
+                                <p class="text-sm text-muted">Tambah, ubah, atau hapus kategori produk</p>
+                            </div>
+                            <button
+                                @click="editingCategory = null; categoryForm = { slug: '', label: '', icon: 'tag', type: 'digital', sort_order: categories.length + 1 }; showCategoryModal = true; $nextTick(() => lucide.createIcons())"
+                                class="bg-primary text-text font-semibold px-4 py-2 rounded-full text-sm hover:bg-primary/90 transition-colors flex items-center gap-2">
+                                <i data-lucide="plus" class="w-4 h-4"></i> Tambah
+                            </button>
+                        </div>
+
+                        <!-- Category List -->
+                        <div x-show="categories.length === 0" class="text-center py-8 text-muted text-sm">
+                            Belum ada kategori. Klik "Tambah" untuk membuat kategori baru.
+                        </div>
+                        <div class="space-y-2">
+                            <template x-for="cat in categories" :key="cat.id">
+                                <div
+                                    class="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-9 h-9 rounded-lg flex items-center justify-center"
+                                            :class="cat.type === 'physical' ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'">
+                                            <i :data-lucide="cat.icon || 'tag'" class="w-4 h-4"></i>
+                                        </div>
+                                        <div>
+                                            <p class="font-medium text-sm" x-text="cat.label"></p>
+                                            <p class="text-xs text-muted"
+                                                x-text="'slug: ' + cat.slug + ' · ' + (cat.type === 'physical' ? 'fisik' : 'digital')">
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-1">
+                                        <button
+                                            @click="editingCategory = cat; categoryForm = { slug: cat.slug, label: cat.label, icon: cat.icon || 'tag', type: cat.type || 'digital', sort_order: cat.sort_order || 0 }; showCategoryModal = true; $nextTick(() => lucide.createIcons())"
+                                            class="p-2 hover:bg-white rounded-lg transition-colors" title="Edit">
+                                            <i data-lucide="pencil" class="w-4 h-4 text-gray-500"></i>
+                                        </button>
+                                        <button @click="deleteCategory(cat)"
+                                            class="p-2 hover:bg-red-50 rounded-lg transition-colors" title="Hapus">
+                                            <i data-lucide="trash-2" class="w-4 h-4 text-red-400"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Category Modal -->
+                    <div x-show="showCategoryModal" x-transition:enter="transition ease-out duration-200"
+                        x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+                        x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100"
+                        x-transition:leave-end="opacity-0"
+                        class="fixed inset-0 z-50 flex items-center justify-center p-4" style="display:none;">
+                        <div class="absolute inset-0 bg-black/50" @click="showCategoryModal = false"></div>
+                        <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+                            <div class="flex items-center justify-between mb-5">
+                                <h3 class="font-bold text-lg"
+                                    x-text="editingCategory ? 'Edit Kategori' : 'Tambah Kategori'"></h3>
+                                <button @click="showCategoryModal = false" class="p-1 hover:bg-gray-100 rounded-lg">
+                                    <i data-lucide="x" class="w-5 h-5"></i>
+                                </button>
+                            </div>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1.5">Nama Kategori</label>
+                                    <input type="text" x-model="categoryForm.label" placeholder="Contoh: Video Kursus"
+                                        @input="if(!editingCategory) categoryForm.slug = categoryForm.label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')"
+                                        class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1.5">Slug (ID unik)</label>
+                                    <input type="text" x-model="categoryForm.slug" placeholder="contoh: video-kursus"
+                                        :disabled="!!editingCategory"
+                                        class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:bg-gray-100 disabled:text-gray-500">
+                                    <p class="text-xs text-gray-400 mt-1" x-show="editingCategory">Slug tidak bisa
+                                        diubah setelah dibuat</p>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1.5">Tipe</label>
+                                    <div class="flex gap-3">
+                                        <label
+                                            class="flex-1 flex items-center gap-2 px-4 py-2.5 border rounded-xl cursor-pointer transition-all"
+                                            :class="categoryForm.type === 'digital' ? 'border-primary bg-primary/5 ring-2 ring-primary/30' : 'border-gray-200 hover:border-gray-300'">
+                                            <input type="radio" value="digital" x-model="categoryForm.type"
+                                                class="hidden">
+                                            <i data-lucide="cloud" class="w-4 h-4"></i>
+                                            <span class="text-sm font-medium">Digital</span>
+                                        </label>
+                                        <label
+                                            class="flex-1 flex items-center gap-2 px-4 py-2.5 border rounded-xl cursor-pointer transition-all"
+                                            :class="categoryForm.type === 'physical' ? 'border-primary bg-primary/5 ring-2 ring-primary/30' : 'border-gray-200 hover:border-gray-300'">
+                                            <input type="radio" value="physical" x-model="categoryForm.type"
+                                                class="hidden">
+                                            <i data-lucide="package" class="w-4 h-4"></i>
+                                            <span class="text-sm font-medium">Fisik</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1.5">Icon (Lucide)</label>
+                                    <div class="flex gap-2">
+                                        <input type="text" x-model="categoryForm.icon" placeholder="tag"
+                                            class="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm">
+                                        <div class="w-11 h-11 bg-gray-100 rounded-xl flex items-center justify-center">
+                                            <i :data-lucide="categoryForm.icon || 'tag'"
+                                                class="w-5 h-5 text-gray-600"></i>
+                                        </div>
+                                    </div>
+                                    <p class="text-xs text-gray-400 mt-1">Nama icon dari <a
+                                            href="https://lucide.dev/icons" target="_blank"
+                                            class="text-primary underline">lucide.dev/icons</a></p>
+                                </div>
+                            </div>
+                            <button @click="saveCategory()"
+                                :disabled="savingCategory || !categoryForm.label || !categoryForm.slug"
+                                class="w-full mt-5 bg-primary text-text font-semibold py-2.5 rounded-full hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
+                                <div x-show="savingCategory"
+                                    class="w-5 h-5 border-2 border-text border-t-transparent rounded-full animate-spin">
+                                </div>
+                                <span
+                                    x-text="savingCategory ? 'Menyimpan...' : (editingCategory ? 'Simpan Perubahan' : 'Tambah Kategori')"></span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </main>
@@ -996,23 +1124,19 @@
                             class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"></textarea>
                     </div>
 
-                    <!-- Category (Checkbox-style Radio) -->
+                    <!-- Category (Checkbox-style Radio, Dynamic) -->
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Kategori</label>
                         <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                            <template x-for="catOption in [
-                                {value: 'ebook', label: 'Ebook', icon: 'book-open'},
-                                {value: 'video', label: 'Video', icon: 'play-circle'},
-                                {value: 'template', label: 'Template', icon: 'layout'},
-                                {value: 'workshop', label: 'Workshop', icon: 'users'},
-                                {value: 'fisik', label: 'Produk Fisik', icon: 'package'}
-                            ]" :key="catOption.value">
+                            <template
+                                x-for="catOption in categories.map(c => ({value: c.slug, label: c.label, icon: c.icon || 'tag'}))"
+                                :key="catOption.value">
                                 <label
                                     :class="productForm.category === catOption.value ? 'border-primary bg-primary/5 ring-2 ring-primary/30' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'"
                                     class="flex items-center gap-2 px-3 py-2.5 border rounded-xl cursor-pointer transition-all">
                                     <input type="radio" name="productCategory" :value="catOption.value"
                                         x-model="productForm.category"
-                                        @change="productForm.type = productForm.category === 'fisik' ? 'physical' : 'digital'"
+                                        @change="productForm.type = (categories.find(c => c.slug === productForm.category)?.type) || 'digital'"
                                         class="hidden">
                                     <div :class="productForm.category === catOption.value ? 'bg-primary border-primary' : 'border-gray-300 bg-white'"
                                         class="w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors">
@@ -1435,6 +1559,13 @@
                 storeLogoPreview: null,
                 savingSettings: false,
 
+                // Categories
+                categories: [],
+                showCategoryModal: false,
+                editingCategory: null,
+                categoryForm: { slug: '', label: '', icon: 'tag', type: 'digital', sort_order: 0 },
+                savingCategory: false,
+
                 // Charts
                 revenueChart: null,
                 ordersStatusChart: null,
@@ -1530,7 +1661,8 @@
                         this.loadProducts(),
                         this.loadOrders(),
                         this.loadCustomers(),
-                        this.loadSettings()
+                        this.loadSettings(),
+                        this.loadCategories()
                     ]);
 
                     // Initialize tracking dengan ID dari database
@@ -1843,6 +1975,78 @@
                         this.showToast('Gagal memuat produk', 'error');
                     } else {
                         this.products = data || [];
+                    }
+                },
+
+                // --- Categories CRUD ---
+                async loadCategories() {
+                    const { data, error } = await supabase
+                        .from('categories')
+                        .select('*')
+                        .order('sort_order', { ascending: true });
+                    if (!error) this.categories = data || [];
+                },
+
+                async saveCategory() {
+                    this.savingCategory = true;
+                    try {
+                        if (this.editingCategory) {
+                            // Update existing
+                            const { error } = await supabase
+                                .from('categories')
+                                .update({
+                                    label: this.categoryForm.label,
+                                    icon: this.categoryForm.icon,
+                                    type: this.categoryForm.type,
+                                    sort_order: this.categoryForm.sort_order
+                                })
+                                .eq('id', this.editingCategory.id);
+                            if (error) throw error;
+                            this.showToast('Kategori berhasil diperbarui');
+                        } else {
+                            // Insert new
+                            const { error } = await supabase
+                                .from('categories')
+                                .insert({
+                                    slug: this.categoryForm.slug,
+                                    label: this.categoryForm.label,
+                                    icon: this.categoryForm.icon,
+                                    type: this.categoryForm.type,
+                                    sort_order: this.categoryForm.sort_order
+                                });
+                            if (error) throw error;
+                            this.showToast('Kategori berhasil ditambahkan');
+                        }
+                        this.showCategoryModal = false;
+                        await this.loadCategories();
+                        this.$nextTick(() => lucide.createIcons());
+                    } catch (err) {
+                        this.showToast(err.message || 'Gagal menyimpan kategori', 'error');
+                    }
+                    this.savingCategory = false;
+                },
+
+                async deleteCategory(cat) {
+                    // Check if category is used by any product
+                    const { count } = await supabase
+                        .from('products')
+                        .select('*', { count: 'exact', head: true })
+                        .eq('category', cat.slug);
+                    if (count > 0) {
+                        this.showToast(`Tidak bisa hapus: ${count} produk masih pakai kategori ini`, 'error');
+                        return;
+                    }
+                    if (!confirm(`Hapus kategori "${cat.label}"?`)) return;
+                    const { error } = await supabase
+                        .from('categories')
+                        .delete()
+                        .eq('id', cat.id);
+                    if (error) {
+                        this.showToast('Gagal menghapus kategori', 'error');
+                    } else {
+                        this.showToast('Kategori berhasil dihapus');
+                        await this.loadCategories();
+                        this.$nextTick(() => lucide.createIcons());
                     }
                 },
 
