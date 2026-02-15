@@ -366,28 +366,7 @@
             </div>
 
             <div class="px-4 pb-8">
-                <!-- Category Filters (HIDDEN) -->
-                <div class="flex overflow-x-auto hide-scrollbar gap-2 mb-6 pb-2" x-show="false">
-                    <button @click="selectedCategory = 'all'; filterProducts()"
-                        :class="selectedCategory === 'all' ? 'bg-primary text-text' : 'bg-white text-gray-600 border border-gray-200'"
-                        class="px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors">Semua</button>
-                    <button @click="selectedCategory = 'ebook'; filterProducts()"
-                        :class="selectedCategory === 'ebook' ? 'bg-primary text-text' : 'bg-white text-gray-600 border border-gray-200'"
-                        class="px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors">Ebook</button>
-                    <button @click="selectedCategory = 'video'; filterProducts()"
-                        :class="selectedCategory === 'video' ? 'bg-primary text-text' : 'bg-white text-gray-600 border border-gray-200'"
-                        class="px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors">Video</button>
-                    <button @click="selectedCategory = 'template'; filterProducts()"
-                        :class="selectedCategory === 'template' ? 'bg-primary text-text' : 'bg-white text-gray-600 border border-gray-200'"
-                        class="px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors">Template</button>
-                    <button @click="selectedCategory = 'workshop'; filterProducts()"
-                        :class="selectedCategory === 'workshop' ? 'bg-primary text-text' : 'bg-white text-gray-600 border border-gray-200'"
-                        class="px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors">Workshop</button>
-                    <button @click="selectedCategory = 'fisik'; filterProducts()"
-                        :class="selectedCategory === 'fisik' ? 'bg-primary text-text' : 'bg-white text-gray-600 border border-gray-200'"
-                        class="px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors">Produk
-                        Fisik</button>
-                </div>
+
 
                 <div class="mb-6" x-show="featuredProducts.length > 0">
                     <div class="flex items-center justify-between mb-4">
@@ -400,7 +379,8 @@
                                 <img :src="product.image_url || 'https://via.placeholder.com/400x300?text=No+Image'"
                                     :alt="product.name" class="w-full h-28 object-cover">
                                 <div class="p-3">
-                                    <p class="text-xs text-muted mb-1 capitalize" x-text="product.category"></p>
+                                    <p x-show="product.category" class="text-xs text-muted mb-1 capitalize"
+                                        x-text="product.category"></p>
                                     <h3 class="font-semibold text-sm line-clamp-2" x-text="product.name"></h3>
                                     <p class="text-primary font-bold text-sm mt-1"
                                         x-text="formatPrice(product.sale_price || product.price)"></p>
@@ -411,7 +391,21 @@
                 </div>
 
                 <div id="products">
-                    <h2 class="font-bold text-lg mb-4">Semua Produk</h2>
+                    <div class="flex items-center gap-3 mb-4">
+                        <h2 class="font-bold text-lg whitespace-nowrap">Semua Produk</h2>
+                        <!-- Category Filters (Dynamic, inline) -->
+                        <div class="flex overflow-x-auto hide-scrollbar gap-2" x-show="availableCategories.length > 0">
+                            <button @click="selectedCategory = 'all'; filterProducts()"
+                                :class="selectedCategory === 'all' ? 'bg-primary text-text' : 'bg-white text-gray-600 border border-gray-200'"
+                                class="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors">Semua</button>
+                            <template x-for="cat in availableCategories" :key="cat">
+                                <button @click="selectedCategory = cat; filterProducts()"
+                                    :class="selectedCategory === cat ? 'bg-primary text-text' : 'bg-white text-gray-600 border border-gray-200'"
+                                    class="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors capitalize"
+                                    x-text="getCategoryLabel(cat)"></button>
+                            </template>
+                        </div>
+                    </div>
                     <div x-show="filteredProducts.length === 0" class="text-center py-12">
                         <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4"><i
                                 data-lucide="package-open" class="w-10 h-10 text-gray-400"></i></div>
@@ -425,8 +419,10 @@
                                 <img :src="product.image_url || 'https://via.placeholder.com/200?text=No+Image'"
                                     :alt="product.name" class="w-20 h-20 rounded-lg object-cover flex-shrink-0">
                                 <div class="flex-1 py-1">
-                                    <div class="flex items-center gap-2 mb-1">
-                                        <span class="text-xs px-2 py-0.5 bg-gray-100 rounded-full capitalize"
+                                    <div class="flex items-center gap-2 mb-1"
+                                        x-show="product.category || product.type === 'physical'">
+                                        <span x-show="product.category"
+                                            class="text-xs px-2 py-0.5 bg-gray-100 rounded-full capitalize"
                                             x-text="product.category"></span>
                                         <span x-show="product.type === 'physical'"
                                             class="text-xs px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full">Fisik</span>
@@ -537,7 +533,8 @@
                 </div>
                 <div class="p-4 pb-24">
                     <div class="flex items-center gap-2 mb-3">
-                        <span class="text-xs px-2.5 py-1 bg-primary/10 text-primary rounded-full capitalize"
+                        <span x-show="selectedProduct?.category"
+                            class="text-xs px-2.5 py-1 bg-primary/10 text-primary rounded-full capitalize"
                             x-text="selectedProduct?.category"></span>
                         <span
                             x-show="selectedProduct?.sale_price > 0 && selectedProduct?.sale_price < selectedProduct?.price"
@@ -931,6 +928,7 @@
                 filteredProducts: [],
                 featuredProducts: [],
                 selectedCategory: 'all',
+                availableCategories: [],
                 searchQuery: '',
                 selectedProduct: null,
                 cart: [],
@@ -961,6 +959,7 @@
                     this.loadCart();
                     this.filteredProducts = this.products;
                     this.featuredProducts = this.products.filter(p => p.featured);
+                    this.availableCategories = [...new Set(this.products.map(p => p.category).filter(c => c && c.trim() !== ''))];
                     this.isLoading = false;
                     this.$nextTick(() => { try { lucide.createIcons(); } catch (e) { console.error('Lucide init error:', e); } });
 
@@ -1198,6 +1197,14 @@
 
                 formatPrice(price) { return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(price || 0); },
                 getDiscountPercent(price, salePrice) { if (!salePrice || salePrice >= price) return 0; return Math.round((1 - salePrice / price) * 100); },
+                getUniqueCategories() {
+                    const cats = this.products.map(p => p.category).filter(c => c && c.trim() !== '');
+                    return [...new Set(cats)];
+                },
+                getCategoryLabel(cat) {
+                    const labels = { 'ebook': 'Ebook', 'video': 'Video', 'template': 'Template', 'workshop': 'Workshop', 'fisik': 'Produk Fisik' };
+                    return labels[cat] || cat;
+                },
                 getYouTubeEmbedUrl(url) {
                     if (!url) return null;
                     let videoId = null;
