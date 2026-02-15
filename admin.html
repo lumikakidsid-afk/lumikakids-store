@@ -2342,9 +2342,23 @@
 
                 // Order Detail Modal
                 showOrderDetailModal(order) {
-                    this.selectedOrder = order;
+                    this.selectedOrder = { ...order };
                     this.trackingNumber = order.tracking_number || '';
                     this.showOrderDetail = true;
+                    // Generate signed URL for payment proof from private bucket
+                    if (order.payment_proof_url) {
+                        let filePath = order.payment_proof_url;
+                        // Extract filename from full URL (old data stored as publicUrl)
+                        if (filePath.includes('/payment-proofs/')) {
+                            filePath = filePath.split('/payment-proofs/').pop().split('?')[0];
+                        }
+                        supabase.storage.from('payment-proofs').createSignedUrl(filePath, 3600)
+                            .then(({ data, error }) => {
+                                if (!error && data?.signedUrl) {
+                                    this.selectedOrder = { ...this.selectedOrder, payment_proof_url: data.signedUrl };
+                                }
+                            });
+                    }
                     this.$nextTick(() => lucide.createIcons());
                 },
 

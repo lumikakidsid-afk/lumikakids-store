@@ -1155,10 +1155,11 @@
                         const fileName = `payment-${this.currentOrder.order_number}-${Date.now()}.${fileExt}`;
                         const { error: uploadError } = await supabase.storage.from('payment-proofs').upload(fileName, file);
                         if (uploadError) throw uploadError;
-                        const { data: { publicUrl } } = supabase.storage.from('payment-proofs').getPublicUrl(fileName);
-                        const { error: updateError } = await supabase.from('orders').update({ payment_proof_url: publicUrl }).eq('id', this.currentOrder.id);
+                        const { data: signedData, error: signErr } = await supabase.storage.from('payment-proofs').createSignedUrl(fileName, 60 * 60 * 24 * 365);
+                        const proofUrl = signErr ? fileName : signedData.signedUrl;
+                        const { error: updateError } = await supabase.from('orders').update({ payment_proof_url: proofUrl }).eq('id', this.currentOrder.id);
                         if (updateError) throw updateError;
-                        this.currentOrder.payment_proof_url = publicUrl; this.showToast('Bukti pembayaran berhasil diupload');
+                        this.currentOrder.payment_proof_url = proofUrl; this.showToast('Bukti pembayaran berhasil diupload');
                     } catch (error) { console.error('Error uploading proof:', error); this.showToast('Gagal upload bukti pembayaran', 'error'); }
                     this.uploadingProof = false;
                 },
