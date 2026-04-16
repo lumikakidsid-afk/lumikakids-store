@@ -658,8 +658,8 @@
                         </div>
                     </div>
                 </div>
-                <!-- ===== BAYAR SEIKHLASNYA ===== -->
-                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
+                <!-- ===== BAYAR SEIKHLASNYA (hanya jika SEMUA item di cart support seikhlasnya) ===== -->
+                <div x-show="cartIsSeikhlasnya" class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
                     <h2 class="font-semibold mb-1">💝 Bayar Seikhlasnya</h2>
                     <p class="text-xs text-muted mb-4">Pilih nominal yang sesuai kemampuanmu, atau masukkan nominal sendiri di kolom bawah</p>
 
@@ -702,6 +702,31 @@
                         ⚠️ Pilih atau masukkan nominal dulu ya
                     </div>
                 </div>
+
+                <!-- ===== METODE PEMBAYARAN NORMAL (transfer / QRIS) — untuk produk harga tetap ===== -->
+                <div x-show="!cartIsSeikhlasnya" class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
+                    <h2 class="font-semibold mb-4">Metode Pembayaran</h2>
+                    <div class="space-y-3">
+                        <label :class="checkoutForm.paymentMethod === 'transfer' ? 'border-primary bg-primary/5' : ''"
+                            class="flex items-center gap-3 p-3 border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors">
+                            <input type="radio" x-model="checkoutForm.paymentMethod" value="transfer" class="w-4 h-4 text-primary">
+                            <div class="flex-1">
+                                <p class="font-medium text-sm">Transfer Bank</p>
+                                <p class="text-xs text-muted" x-show="storeSettings.bank_name" x-text="storeSettings.bank_name"></p>
+                            </div>
+                            <i data-lucide="building-2" class="w-5 h-5 text-muted"></i>
+                        </label>
+                        <label :class="checkoutForm.paymentMethod === 'qris' ? 'border-primary bg-primary/5' : ''"
+                            class="flex items-center gap-3 p-3 border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors">
+                            <input type="radio" x-model="checkoutForm.paymentMethod" value="qris" class="w-4 h-4 text-primary">
+                            <div class="flex-1">
+                                <p class="font-medium text-sm">QRIS</p>
+                                <p class="text-xs text-muted">Scan QR code</p>
+                            </div>
+                            <i data-lucide="qr-code" class="w-5 h-5 text-muted"></i>
+                        </label>
+                    </div>
+                </div>
                 <button @click="submitOrder()" :disabled="submittingOrder || cart.length === 0"
                     class="w-full bg-primary text-text font-semibold py-3 rounded-full hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                     <div x-show="submittingOrder"
@@ -728,15 +753,23 @@
                     <p class="text-muted text-sm">Nomor Order: <span class="font-mono font-medium"
                             x-text="currentOrder?.order_number"></span></p>
                 </div>
-                <!-- Nominal seikhlasnya yang dipilih -->
-                <div class="bg-gradient-to-r from-primary/20 to-yellow-100 rounded-xl shadow-sm border border-primary/30 p-4 mb-6 text-center">
+                <!-- === TAMPILAN UNTUK PRODUK SEIKHLASNYA === -->
+                <div x-show="currentOrder?.payment_method === 'seikhlasnya'"
+                    class="bg-gradient-to-r from-primary/20 to-yellow-100 rounded-xl shadow-sm border border-primary/30 p-4 mb-6 text-center">
                     <p class="text-sm text-gray-600 mb-1">💝 Nominal Seikhlasnya</p>
                     <p class="text-3xl font-bold text-primary" x-text="formatPrice(currentOrder?.total_amount)"></p>
                     <p class="text-xs text-gray-500 mt-1">Jazakallah khairan atas kebaikanmu 🙏</p>
                 </div>
 
-                <!-- Transfer Bank -->
-                <div x-show="storeSettings.bank_account_number"
+                <!-- === TAMPILAN UNTUK PRODUK HARGA TETAP === -->
+                <div x-show="currentOrder?.payment_method !== 'seikhlasnya'"
+                    class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6 text-center">
+                    <p class="text-sm text-muted mb-1">Total yang harus dibayar</p>
+                    <p class="text-3xl font-bold text-primary" x-text="formatPrice(currentOrder?.total_amount)"></p>
+                </div>
+
+                <!-- Transfer Bank — tampil untuk seikhlasnya (semua opsi) ATAU transfer biasa -->
+                <div x-show="currentOrder?.payment_method === 'seikhlasnya' ? storeSettings.bank_account_number : currentOrder?.payment_method === 'transfer'"
                     class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-4">
                     <h2 class="font-semibold mb-3 flex items-center gap-2"><i data-lucide="building-2" class="w-4 h-4 text-primary"></i> Transfer Bank</h2>
                     <div class="bg-gray-50 rounded-xl p-4 space-y-2">
@@ -753,15 +786,15 @@
                                 class="text-sm font-medium" x-text="storeSettings.bank_account_name || '-'"></span>
                         </div>
                     </div>
-                    <p class="text-xs text-muted mt-3">* Transfer sesuai nominal yang dipilih</p>
+                    <p class="text-xs text-muted mt-3" x-text="currentOrder?.payment_method === 'seikhlasnya' ? '* Transfer sesuai nominal yang kamu pilih' : '* Transfer tepat sesuai jumlah total'"></p>
                 </div>
 
-                <!-- QRIS -->
-                <div x-show="storeSettings.qris_image_url"
+                <!-- QRIS — tampil untuk seikhlasnya (semua opsi) ATAU qris biasa -->
+                <div x-show="currentOrder?.payment_method === 'seikhlasnya' ? storeSettings.qris_image_url : currentOrder?.payment_method === 'qris'"
                     class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
                     <h2 class="font-semibold mb-3 flex items-center gap-2"><i data-lucide="qr-code" class="w-4 h-4 text-primary"></i> QRIS</h2>
                     <div class="text-center"><img
-                            :src="storeSettings.qris_image_url"
+                            :src="storeSettings.qris_image_url || 'https://via.placeholder.com/300x300?text=QRIS+Not+Set'"
                             alt="QRIS Code" class="w-48 h-48 mx-auto rounded-xl border border-gray-200">
                         <p class="text-xs text-muted mt-3">Scan QR code pakai e-wallet atau mobile banking</p>
                     </div>
@@ -991,6 +1024,8 @@
                 authLoading: false,
 
                 get hasPhysicalItems() { return this.cart.some(item => item.type === 'physical'); },
+                // Seikhlasnya aktif HANYA jika semua item di cart punya allow_seikhlasnya = true
+                get cartIsSeikhlasnya() { return this.cart.length > 0 && this.cart.every(item => item.allow_seikhlasnya === true); },
 
                 async init() {
                     try {
@@ -1124,7 +1159,7 @@
                         if (product.type === 'physical' && existingItem.quantity >= product.stock) { this.showToast('Stok tidak mencukupi', 'error'); return; }
                         existingItem.quantity += quantity;
                     }
-                    else { this.cart.push({ product_id: product.id, name: product.name, price: product.sale_price || product.price, image_url: product.image_url || 'https://via.placeholder.com/200?text=No+Image', quantity: quantity, type: product.type, file_url: product.file_url || '' }); }
+                    else { this.cart.push({ product_id: product.id, name: product.name, price: product.sale_price || product.price, image_url: product.image_url || 'https://via.placeholder.com/200?text=No+Image', quantity: quantity, type: product.type, file_url: product.file_url || '', allow_seikhlasnya: product.allow_seikhlasnya || false }); }
                     this.saveCart();
                     this.trackAddToCart(product, quantity);
                     this.showToast('Produk ditambahkan ke keranjang');
@@ -1154,12 +1189,15 @@
                 async submitOrder() {
                     if (!this.checkoutForm.name || !this.checkoutForm.email || !this.checkoutForm.phone) { this.showToast('Mohon lengkapi data pembeli', 'error'); return; }
                     if (this.hasPhysicalItems && (!this.checkoutForm.address || !this.checkoutForm.city)) { this.showToast('Mohon lengkapi alamat pengiriman', 'error'); return; }
-                    if (!this.checkoutForm.seikhlasnyaAmount || this.checkoutForm.seikhlasnyaAmount < 1000) { this.showToast('Pilih atau masukkan nominal pembayaran dulu ya 🙏', 'error'); return; }
+                    // Validasi seikhlasnya: hanya jika semua item support seikhlasnya
+                    if (this.cartIsSeikhlasnya && (!this.checkoutForm.seikhlasnyaAmount || this.checkoutForm.seikhlasnyaAmount < 1000)) { this.showToast('Pilih atau masukkan nominal pembayaran dulu ya 🙏', 'error'); return; }
                     if (!this.user) { this.showAuthModal = true; return; }
                     this.submittingOrder = true;
+                    const finalAmount = this.cartIsSeikhlasnya ? this.checkoutForm.seikhlasnyaAmount : this.getCartTotal();
+                    const finalMethod = this.cartIsSeikhlasnya ? 'seikhlasnya' : this.checkoutForm.paymentMethod;
                     try {
-                        this.trackAddPaymentInfo('seikhlasnya');
-                        const orderData = { user_id: this.user.id, customer_name: this.checkoutForm.name, customer_email: this.checkoutForm.email, customer_phone: this.checkoutForm.phone, total_amount: this.checkoutForm.seikhlasnyaAmount, payment_method: 'seikhlasnya', shipping_address: this.checkoutForm.address || null, shipping_city: this.checkoutForm.city || null, notes: this.checkoutForm.notes || null, has_physical_items: this.hasPhysicalItems };
+                        this.trackAddPaymentInfo(finalMethod);
+                        const orderData = { user_id: this.user.id, customer_name: this.checkoutForm.name, customer_email: this.checkoutForm.email, customer_phone: this.checkoutForm.phone, total_amount: finalAmount, payment_method: finalMethod, shipping_address: this.checkoutForm.address || null, shipping_city: this.checkoutForm.city || null, notes: this.checkoutForm.notes || null, has_physical_items: this.hasPhysicalItems };
                         const { data: order, error: orderError } = await supabase.from('orders').insert([orderData]).select().single();
                         if (orderError) throw orderError;
                         const orderItems = this.cart.map(item => ({ order_id: order.id, product_id: item.product_id, product_name: item.name, product_type: item.type, quantity: item.quantity, price: item.price, file_url: item.file_url || '' }));

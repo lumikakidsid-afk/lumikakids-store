@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS products (
     weight INTEGER DEFAULT 0,
     status TEXT DEFAULT 'active' CHECK (status IN ('active', 'draft')),
     featured BOOLEAN DEFAULT FALSE,
+    allow_seikhlasnya BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );

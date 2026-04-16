@@ -1288,7 +1288,7 @@
                     </div>
 
                     <!-- Status & Featured -->
-                    <div class="flex items-center gap-4">
+                    <div class="flex items-center gap-4 flex-wrap">
                         <label class="flex items-center gap-2 cursor-pointer">
                             <input type="checkbox" x-model="productForm.featured" class="w-4 h-4 text-primary rounded">
                             <span class="text-sm">Produk Unggulan</span>
@@ -1298,6 +1298,10 @@
                                 @change="productForm.status = $event.target.checked ? 'active' : 'draft'"
                                 class="w-4 h-4 text-primary rounded">
                             <span class="text-sm">Aktif</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer" title="Pembeli bisa memilih nominal sendiri saat checkout">
+                            <input type="checkbox" x-model="productForm.allow_seikhlasnya" class="w-4 h-4 text-primary rounded">
+                            <span class="text-sm">💝 Bayar Seikhlasnya</span>
                         </label>
                     </div>
                 </div>
@@ -1527,7 +1531,7 @@
                 productForm: {
                     name: '', description: '', price: 0, sale_price: 0,
                     category: 'ebook', type: 'digital', stock: 0, weight: 0,
-                    status: 'active', featured: false, image_url: '', file_url: '', youtube_url: ''
+                    status: 'active', featured: false, allow_seikhlasnya: false, image_url: '', file_url: '', youtube_url: ''
                 },
                 productImageFiles: [],
                 productImagePreviews: [],
@@ -2151,7 +2155,7 @@
                         this.productForm = {
                             name: '', description: '', price: 0, sale_price: 0,
                             category: 'ebook', type: 'digital', stock: 0, weight: 0,
-                            status: 'active', featured: false, image_url: '', file_url: '', youtube_url: ''
+                            status: 'active', featured: false, allow_seikhlasnya: false, image_url: '', file_url: '', youtube_url: ''
                         };
                         this.productImagePreviews = [];
                     }
