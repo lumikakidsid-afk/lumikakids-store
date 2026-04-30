@@ -665,7 +665,7 @@
 
                     <!-- Preset amount buttons -->
                     <div class="grid grid-cols-3 gap-2 mb-4">
-                        <template x-for="preset in [1000000, 500000, 300000, 100000, 50000, 20000, 10000]" :key="preset">
+                        <template x-for="preset in [1000000, 500000, 300000, 200000, 100000, 50000, 20000, 10000, 5000]" :key="preset">
                             <button
                                 @click="checkoutForm.seikhlasnyaAmount = preset; checkoutForm.customAmountValue = ''"
                                 :class="checkoutForm.seikhlasnyaAmount === preset && checkoutForm.customAmountValue === '' ? 'bg-primary text-white border-primary shadow-md' : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-primary/10 hover:border-primary'"
