@@ -644,12 +644,12 @@
 
                             <!-- Payment Method Tabs -->
                             <div class="mt-5 flex gap-1 border-b border-gray-200">
-                                <button @click="checkoutForm.paymentTab = 'qris'"
+                                <button @click="checkoutForm.paymentTab = 'qris'; $nextTick(() => { try { lucide.createIcons(); } catch(e) {} })"
                                     :class="checkoutForm.paymentTab === 'qris' ? 'border-b-2 border-primary text-primary font-bold' : 'text-gray-400 hover:text-gray-700'"
                                     class="px-4 py-2.5 text-xs uppercase tracking-wider transition-all flex items-center gap-1.5">
                                     <i data-lucide="qr-code" class="w-4 h-4"></i> QRIS
                                 </button>
-                                <button @click="checkoutForm.paymentTab = 'bank'"
+                                <button @click="checkoutForm.paymentTab = 'bank'; $nextTick(() => { try { lucide.createIcons(); } catch(e) {} })"
                                     :class="checkoutForm.paymentTab === 'bank' ? 'border-b-2 border-primary text-primary font-bold' : 'text-gray-400 hover:text-gray-700'"
                                     class="px-4 py-2.5 text-xs uppercase tracking-wider transition-all flex items-center gap-1.5">
                                     <i data-lucide="building-2" class="w-4 h-4"></i> Bank Transfer
