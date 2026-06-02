@@ -875,6 +875,16 @@
                         <p class="text-2xl font-bold text-primary" x-text="formatPrice(currentOrder?.total_amount)"></p>
                     </div>
 
+                    <!-- Guest account info (like PSV) -->
+                    <div x-show="guestCreated" class="mt-4 bg-primary/10 border border-primary/30 rounded-xl p-4 text-left">
+                        <p class="text-xs font-bold uppercase tracking-widest text-text mb-2">Akun kamu sudah dibuat 🎉</p>
+                        <div class="space-y-1">
+                            <p class="text-xs text-gray-600">Email: <span class="font-bold text-text" x-text="guestCreated?.email"></span></p>
+                            <p class="text-xs text-gray-600">Password: <span class="font-bold text-text font-mono" x-text="guestCreated?.password"></span></p>
+                        </div>
+                        <p class="mt-2 text-[10px] text-gray-500">Simpan info ini. Ganti password setelah login pertama kali.</p>
+                    </div>
+
                     <!-- CTA Buttons -->
                     <div class="mt-6 flex flex-col gap-3">
                         <a :href="getWhatsAppConfirmLink()"
@@ -1075,6 +1085,8 @@
                 currentOrder: null,
                 submittingOrder: false,
                 uploadingProof: false,
+                guestCreated: null,
+                guestRegisterError: '',
                 authForm: { email: '', password: '', fullName: '' },
                 authError: '',
                 authLoading: false,
@@ -1237,8 +1249,13 @@
                 clearCart() { this.cart = []; localStorage.removeItem('cart'); },
 
                 goToCheckout() {
-                    if (!this.user) { this.showAuthModal = true; return; }
                     this.trackInitiateCheckout();
+                    // Pre-fill form with logged-in user data if available
+                    if (this.user) {
+                        if (!this.checkoutForm.name) this.checkoutForm.name = this.profile?.full_name || this.user.user_metadata?.full_name || '';
+                        if (!this.checkoutForm.email) this.checkoutForm.email = this.user.email || '';
+                        if (!this.checkoutForm.phone) this.checkoutForm.phone = this.profile?.phone || '';
+                    }
                     this.currentPage = 'checkout'; window.scrollTo(0, 0); this.$nextTick(() => { try { lucide.createIcons(); } catch (e) { } });
                 },
 
@@ -1259,15 +1276,58 @@
                 async submitOrder() {
                     if (!this.checkoutForm.name || !this.checkoutForm.email || !this.checkoutForm.phone) { this.showToast('Mohon lengkapi data pembeli', 'error'); return; }
                     if (this.hasPhysicalItems && (!this.checkoutForm.address || !this.checkoutForm.city)) { this.showToast('Mohon lengkapi alamat pengiriman', 'error'); return; }
-                    // Validasi seikhlasnya: hanya jika semua item support seikhlasnya
                     if (this.cartIsSeikhlasnya && (!this.checkoutForm.seikhlasnyaAmount || this.checkoutForm.seikhlasnyaAmount < 1000)) { this.showToast('Pilih atau masukkan nominal pembayaran dulu ya 🙏', 'error'); return; }
-                    if (!this.user) { this.showAuthModal = true; return; }
                     this.submittingOrder = true;
+                    this.guestRegisterError = '';
+
+                    let userId = this.user?.id;
+
+                    // Guest checkout: auto-create account (like PSV)
+                    if (!this.user) {
+                        try {
+                            const guestPassword = 'LumiKids2026';
+                            // Try sign up
+                            const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+                                email: this.checkoutForm.email.trim(),
+                                password: guestPassword,
+                                options: { data: { full_name: this.checkoutForm.name.trim() } }
+                            });
+                            if (signUpError && signUpError.message.toLowerCase().includes('already registered')) {
+                                // Account exists — try login
+                                const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+                                    email: this.checkoutForm.email.trim(),
+                                    password: guestPassword
+                                });
+                                if (signInError) {
+                                    this.showToast('Email sudah terdaftar. Silakan login dulu.', 'error');
+                                    this.submittingOrder = false;
+                                    return;
+                                }
+                                userId = signInData.user?.id;
+                                this.user = signInData.user;
+                            } else if (signUpError) {
+                                this.showToast('Gagal membuat akun: ' + signUpError.message, 'error');
+                                this.submittingOrder = false;
+                                return;
+                            } else {
+                                userId = signUpData.user?.id;
+                                this.user = signUpData.user;
+                                this.guestCreated = { email: this.checkoutForm.email.trim(), password: guestPassword };
+                            }
+                        } catch (err) {
+                            this.showToast('Gagal memproses akun. Coba lagi.', 'error');
+                            this.submittingOrder = false;
+                            return;
+                        }
+                    }
+
+                    if (!userId) { this.showToast('Gagal mendapatkan akun. Coba lagi.', 'error'); this.submittingOrder = false; return; }
+
                     const finalAmount = this.cartIsSeikhlasnya ? this.checkoutForm.seikhlasnyaAmount : this.getCartTotal();
                     const finalMethod = this.cartIsSeikhlasnya ? 'seikhlasnya' : this.checkoutForm.paymentTab;
                     try {
                         this.trackAddPaymentInfo(finalMethod);
-                        const orderData = { user_id: this.user.id, customer_name: this.checkoutForm.name, customer_email: this.checkoutForm.email, customer_phone: this.checkoutForm.phone, total_amount: finalAmount, payment_method: finalMethod, shipping_address: this.checkoutForm.address || null, shipping_city: this.checkoutForm.city || null, notes: this.checkoutForm.notes || null, has_physical_items: this.hasPhysicalItems };
+                        const orderData = { user_id: userId, customer_name: this.checkoutForm.name, customer_email: this.checkoutForm.email, customer_phone: this.checkoutForm.phone, total_amount: finalAmount, payment_method: finalMethod, shipping_address: this.checkoutForm.address || null, shipping_city: this.checkoutForm.city || null, notes: this.checkoutForm.notes || null, has_physical_items: this.hasPhysicalItems };
                         const { data: order, error: orderError } = await supabase.from('orders').insert([orderData]).select().single();
                         if (orderError) throw orderError;
                         const orderItems = this.cart.map(item => ({ order_id: order.id, product_id: item.product_id, product_name: item.name, product_type: item.type, quantity: item.quantity, price: item.price, file_url: item.file_url || '' }));
@@ -1275,9 +1335,9 @@
                         if (itemsError) throw itemsError;
                         this.currentOrder = order;
                         this.trackPurchase(order);
-                        // Open WhatsApp confirmation (PSV style)
                         window.open(this.getWhatsAppConfirmLink(), '_blank');
                         this.currentPage = 'payment'; window.scrollTo(0, 0); this.showToast('Pesanan berhasil dibuat!');
+                        this.$nextTick(() => { try { lucide.createIcons(); } catch (e) { } });
                     } catch (error) { console.error('Error submitting order:', error); this.showToast('Gagal membuat pesanan', 'error'); }
                     this.submittingOrder = false;
                 },
