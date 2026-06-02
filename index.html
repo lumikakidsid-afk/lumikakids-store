@@ -594,247 +594,303 @@
             </div>
         </div>
 
-        <!-- ==================== CHECKOUT PAGE ==================== -->
-        <div x-show="currentPage === 'checkout'" x-transition class="min-h-screen">
+        <!-- ==================== CHECKOUT PAGE (PSV Style) ==================== -->
+        <div x-show="currentPage === 'checkout'" x-transition class="min-h-screen bg-gray-50">
             <div class="sticky top-0 z-30 bg-white/80 backdrop-blur-sm px-4 py-3 border-b border-gray-100">
                 <button
                     @click="currentPage = 'home'; selectedProduct = null; const u2 = new URL(window.location); u2.searchParams.delete('product'); window.history.pushState({}, '', u2);"
                     class="flex items-center gap-2 text-text hover:text-primary transition-colors"><i
                         data-lucide="arrow-left" class="w-5 h-5"></i><span class="font-medium">Kembali</span></button>
             </div>
-            <div class="p-4 pb-24">
-                <h1 class="text-xl font-bold mb-6">Checkout</h1>
-                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
-                    <h2 class="font-semibold mb-4">Ringkasan Pesanan</h2>
-                    <div class="space-y-3 mb-4">
-                        <template x-for="item in cart" :key="item.product_id">
-                            <div class="flex items-center gap-3">
-                                <img :src="item.image_url" class="w-12 h-12 rounded-lg object-cover">
-                                <div class="flex-1">
-                                    <p class="text-sm font-medium line-clamp-1" x-text="item.name"></p>
-                                    <p class="text-xs text-muted"><span x-text="item.quantity"></span> x <span
-                                            x-text="formatPrice(item.price)"></span></p>
+
+            <div class="p-4 pb-24 max-w-4xl mx-auto">
+                <!-- 2-Column Layout -->
+                <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+
+                    <!-- LEFT: Payment Methods (3 cols) -->
+                    <div class="lg:col-span-3 space-y-4">
+                        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+                            <h2 class="text-lg font-bold">Checkout</h2>
+                            <p class="mt-1 text-xs text-gray-500">Pilih metode pembayaran · Bayar · Konfirmasi</p>
+
+                            <!-- === SEIKHLASNYA SECTION (if applicable) === -->
+                            <div x-show="cartIsSeikhlasnya" class="mt-5 bg-gradient-to-r from-primary/10 to-yellow-50 rounded-xl p-4 border border-primary/20">
+                                <h3 class="font-semibold mb-1 text-sm">💝 Bayar Seikhlasnya</h3>
+                                <p class="text-xs text-gray-500 mb-3">Pilih nominal yang sesuai kemampuanmu</p>
+                                <!-- Preset amount buttons -->
+                                <div class="grid grid-cols-3 gap-2 mb-3">
+                                    <template x-for="preset in [1000000, 500000, 300000, 200000, 100000, 50000, 20000, 10000, 5000]" :key="preset">
+                                        <button
+                                            @click="checkoutForm.seikhlasnyaAmount = preset; checkoutForm.customAmountValue = ''"
+                                            :class="checkoutForm.seikhlasnyaAmount === preset && checkoutForm.customAmountValue === '' ? 'bg-primary text-white border-primary shadow-md' : 'bg-white text-gray-700 border-gray-200 hover:bg-primary/10 hover:border-primary'"
+                                            class="border rounded-xl py-2.5 px-1 text-xs font-semibold transition-all duration-150 text-center"
+                                            x-text="preset >= 1000000 ? 'Rp' + (preset/1000000) + 'jt' : 'Rp' + (preset/1000).toFixed(0) + 'rb'">
+                                        </button>
+                                    </template>
                                 </div>
-                                <p class="font-medium text-sm" x-text="formatPrice(item.price * item.quantity)"></p>
+                                <!-- Custom input -->
+                                <div class="border border-dashed border-gray-300 rounded-xl p-3"
+                                    :class="checkoutForm.customAmountValue ? 'border-primary bg-primary/5' : ''">
+                                    <label class="block text-xs font-medium text-gray-600 mb-1.5">🤲 Nominal Seikhlasnya (isi sendiri)</label>
+                                    <div class="relative">
+                                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-500">Rp</span>
+                                        <input type="number" x-model="checkoutForm.customAmountValue"
+                                            @input="checkoutForm.seikhlasnyaAmount = parseInt(checkoutForm.customAmountValue) || 0"
+                                            placeholder="Contoh: 75000" min="1000"
+                                            class="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm">
+                                    </div>
+                                </div>
                             </div>
-                        </template>
-                    </div>
-                    <div class="border-t border-gray-100 pt-3 flex justify-between items-center"><span
-                            class="font-semibold">Total</span><span class="text-xl font-bold text-primary"
-                            x-text="formatPrice(getCartTotal())"></span></div>
-                </div>
-                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
-                    <h2 class="font-semibold mb-4">Data Pembeli</h2>
-                    <div class="space-y-4">
-                        <div><label class="block text-sm font-medium text-gray-700 mb-1.5">Nama Lengkap</label><input
-                                type="text" x-model="checkoutForm.name" placeholder="Nama lengkap"
-                                class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50">
-                        </div>
-                        <div><label class="block text-sm font-medium text-gray-700 mb-1.5">Email</label><input
-                                type="email" x-model="checkoutForm.email" :readonly="user"
-                                placeholder="email@example.com"
-                                :class="user ? 'bg-gray-100 text-gray-500' : 'bg-gray-50'"
-                                class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50">
-                        </div>
-                        <div><label class="block text-sm font-medium text-gray-700 mb-1.5">No. WhatsApp</label><input
-                                type="tel" x-model="checkoutForm.phone" placeholder="08123456789"
-                                class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50">
-                        </div>
-                        <div x-show="hasPhysicalItems"><label
-                                class="block text-sm font-medium text-gray-700 mb-1.5">Alamat
-                                Pengiriman</label><textarea x-model="checkoutForm.address" rows="3"
-                                placeholder="Alamat lengkap"
-                                class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"></textarea>
-                        </div>
-                        <div x-show="hasPhysicalItems"><label
-                                class="block text-sm font-medium text-gray-700 mb-1.5">Kota</label><input type="text"
-                                x-model="checkoutForm.city" placeholder="Jakarta"
-                                class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50">
-                        </div>
-                        <div><label class="block text-sm font-medium text-gray-700 mb-1.5">Catatan
-                                (opsional)</label><textarea x-model="checkoutForm.notes" rows="2"
-                                placeholder="Catatan untuk penjual"
-                                class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"></textarea>
-                        </div>
-                    </div>
-                </div>
-                <!-- ===== BAYAR SEIKHLASNYA (hanya jika SEMUA item di cart support seikhlasnya) ===== -->
-                <div x-show="cartIsSeikhlasnya" class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
-                    <h2 class="font-semibold mb-1">💝 Bayar Seikhlasnya</h2>
-                    <p class="text-xs text-muted mb-4">Pilih nominal yang sesuai kemampuanmu, atau masukkan nominal sendiri di kolom bawah</p>
 
-                    <!-- Preset amount buttons -->
-                    <div class="grid grid-cols-3 gap-2 mb-4">
-                        <template x-for="preset in [1000000, 500000, 300000, 200000, 100000, 50000, 20000, 10000, 5000]" :key="preset">
-                            <button
-                                @click="checkoutForm.seikhlasnyaAmount = preset; checkoutForm.customAmountValue = ''"
-                                :class="checkoutForm.seikhlasnyaAmount === preset && checkoutForm.customAmountValue === '' ? 'bg-primary text-white border-primary shadow-md' : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-primary/10 hover:border-primary'"
-                                class="border rounded-xl py-2.5 px-1 text-xs font-semibold transition-all duration-150 text-center"
-                                x-text="preset >= 1000000 ? 'Rp' + (preset/1000000) + 'jt' : 'Rp' + (preset/1000).toFixed(0) + 'rb'">
-                            </button>
-                        </template>
-                    </div>
-
-                    <!-- Custom / seikhlasnya input -->
-                    <div class="border border-dashed border-gray-300 rounded-xl p-3"
-                        :class="checkoutForm.customAmountValue ? 'border-primary bg-primary/5' : ''">
-                        <label class="block text-xs font-medium text-gray-600 mb-1.5">🤲 Nominal Seikhlasnya (isi sendiri)</label>
-                        <div class="relative">
-                            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-500">Rp</span>
-                            <input
-                                type="number"
-                                x-model="checkoutForm.customAmountValue"
-                                @input="checkoutForm.seikhlasnyaAmount = parseInt(checkoutForm.customAmountValue) || 0"
-                                placeholder="Contoh: 75000"
-                                min="1000"
-                                class="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm">
-                        </div>
-                    </div>
-
-                    <!-- Tampilkan nominal yang dipilih -->
-                    <div x-show="checkoutForm.seikhlasnyaAmount > 0"
-                        class="mt-3 flex items-center justify-between bg-green-50 border border-green-200 rounded-xl px-4 py-2.5">
-                        <span class="text-xs text-green-700 font-medium">✅ Nominal dipilih</span>
-                        <span class="text-base font-bold text-green-700" x-text="formatPrice(checkoutForm.seikhlasnyaAmount)"></span>
-                    </div>
-                    <div x-show="checkoutForm.seikhlasnyaAmount === 0"
-                        class="mt-3 text-center text-xs text-red-400 font-medium">
-                        ⚠️ Pilih atau masukkan nominal dulu ya
-                    </div>
-                </div>
-
-                <!-- ===== METODE PEMBAYARAN NORMAL (transfer / QRIS) — untuk produk harga tetap ===== -->
-                <div x-show="!cartIsSeikhlasnya" class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
-                    <h2 class="font-semibold mb-4">Metode Pembayaran</h2>
-                    <div class="space-y-3">
-                        <label :class="checkoutForm.paymentMethod === 'transfer' ? 'border-primary bg-primary/5' : ''"
-                            class="flex items-center gap-3 p-3 border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors">
-                            <input type="radio" x-model="checkoutForm.paymentMethod" value="transfer" class="w-4 h-4 text-primary">
-                            <div class="flex-1">
-                                <p class="font-medium text-sm">Transfer Bank</p>
-                                <p class="text-xs text-muted" x-show="storeSettings.bank_name" x-text="storeSettings.bank_name"></p>
+                            <!-- Payment Method Tabs -->
+                            <div class="mt-5 flex gap-1 border-b border-gray-200">
+                                <button @click="checkoutForm.paymentTab = 'qris'"
+                                    :class="checkoutForm.paymentTab === 'qris' ? 'border-b-2 border-primary text-primary font-bold' : 'text-gray-400 hover:text-gray-700'"
+                                    class="px-4 py-2.5 text-xs uppercase tracking-wider transition-all flex items-center gap-1.5">
+                                    <i data-lucide="qr-code" class="w-4 h-4"></i> QRIS
+                                </button>
+                                <button @click="checkoutForm.paymentTab = 'bank'"
+                                    :class="checkoutForm.paymentTab === 'bank' ? 'border-b-2 border-primary text-primary font-bold' : 'text-gray-400 hover:text-gray-700'"
+                                    class="px-4 py-2.5 text-xs uppercase tracking-wider transition-all flex items-center gap-1.5">
+                                    <i data-lucide="building-2" class="w-4 h-4"></i> Bank Transfer
+                                </button>
                             </div>
-                            <i data-lucide="building-2" class="w-5 h-5 text-muted"></i>
-                        </label>
-                        <label :class="checkoutForm.paymentMethod === 'qris' ? 'border-primary bg-primary/5' : ''"
-                            class="flex items-center gap-3 p-3 border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors">
-                            <input type="radio" x-model="checkoutForm.paymentMethod" value="qris" class="w-4 h-4 text-primary">
-                            <div class="flex-1">
-                                <p class="font-medium text-sm">QRIS</p>
-                                <p class="text-xs text-muted">Scan QR code</p>
+
+                            <!-- QRIS Content -->
+                            <div x-show="checkoutForm.paymentTab === 'qris'" x-transition class="mt-5">
+                                <div class="flex justify-center">
+                                    <div class="relative border-2 border-gray-800 rounded-xl p-5 bg-white">
+                                        <template x-if="storeSettings.qris_image_url">
+                                            <img :src="storeSettings.qris_image_url" alt="QRIS Code" class="w-52 h-52 object-contain rounded-lg">
+                                        </template>
+                                        <template x-if="!storeSettings.qris_image_url">
+                                            <div class="flex flex-col items-center justify-center w-52 h-52 bg-gray-50 rounded-lg">
+                                                <i data-lucide="qr-code" class="w-20 h-20 text-gray-300"></i>
+                                                <p class="mt-2 text-xs text-gray-400 font-medium uppercase tracking-wider">QRIS Code</p>
+                                                <p class="text-[10px] text-gray-400" x-text="storeSettings.store_name || 'Toko'"></p>
+                                            </div>
+                                        </template>
+                                        <div class="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-gray-800 px-3 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest text-white">
+                                            Scan & Bayar
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                            <i data-lucide="qr-code" class="w-5 h-5 text-muted"></i>
-                        </label>
+
+                            <!-- Bank Transfer Content -->
+                            <div x-show="checkoutForm.paymentTab === 'bank'" x-transition class="mt-5">
+                                <div class="bg-gray-50 rounded-xl p-5 border-l-4 border-gray-800">
+                                    <h3 class="text-xs font-bold uppercase tracking-widest text-gray-800 mb-3">Detail Rekening</h3>
+                                    <div class="space-y-2.5">
+                                        <div class="flex justify-between items-center">
+                                            <span class="text-xs text-gray-500">Bank</span>
+                                            <span class="text-sm font-bold text-gray-800" x-text="storeSettings.bank_name || '-'"></span>
+                                        </div>
+                                        <div class="flex justify-between items-center">
+                                            <span class="text-xs text-gray-500">Nomor Rekening</span>
+                                            <div class="flex items-center gap-2">
+                                                <span class="text-sm font-bold text-gray-800 font-mono" x-text="storeSettings.bank_account_number || '-'"></span>
+                                                <button @click="copyToClipboard(storeSettings.bank_account_number)"
+                                                    class="flex h-7 w-7 items-center justify-center border border-gray-300 rounded-md text-gray-500 hover:bg-gray-100 transition-colors">
+                                                    <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="flex justify-between items-center">
+                                            <span class="text-xs text-gray-500">Atas Nama</span>
+                                            <span class="text-sm font-bold text-gray-800" x-text="storeSettings.bank_account_name || '-'"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Jumlah Pembayaran -->
+                            <div class="mt-5 bg-gray-50 rounded-xl p-4 border-l-2 border-primary">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-xs uppercase tracking-wider text-gray-500">Jumlah Pembayaran</span>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-lg font-bold text-gray-800"
+                                            x-text="formatPrice(cartIsSeikhlasnya ? checkoutForm.seikhlasnyaAmount : getCartTotal())"></span>
+                                        <button @click="copyToClipboard(String(cartIsSeikhlasnya ? checkoutForm.seikhlasnyaAmount : getCartTotal()))"
+                                            class="flex h-7 w-7 items-center justify-center border border-gray-300 rounded-md text-gray-500 hover:bg-gray-100 transition-colors">
+                                            <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Step-by-step Instructions -->
+                            <div class="mt-5 space-y-3">
+                                <h3 class="text-xs font-bold uppercase tracking-widest text-gray-800">Cara Pembayaran:</h3>
+                                <!-- QRIS Steps -->
+                                <template x-if="checkoutForm.paymentTab === 'qris'">
+                                    <div class="space-y-3">
+                                        <div class="flex items-start gap-3">
+                                            <div class="flex h-8 w-8 shrink-0 items-center justify-center bg-gray-800 text-white rounded-lg"><i data-lucide="smartphone" class="w-4 h-4"></i></div>
+                                            <div><span class="text-[10px] font-bold uppercase tracking-wider text-gray-800">Langkah 1</span><p class="text-xs text-gray-500">Buka aplikasi e-wallet atau m-banking kamu</p></div>
+                                        </div>
+                                        <div class="flex items-start gap-3">
+                                            <div class="flex h-8 w-8 shrink-0 items-center justify-center bg-gray-800 text-white rounded-lg"><i data-lucide="qr-code" class="w-4 h-4"></i></div>
+                                            <div><span class="text-[10px] font-bold uppercase tracking-wider text-gray-800">Langkah 2</span><p class="text-xs text-gray-500">Scan kode QRIS di atas dan bayar sesuai jumlah yang tertera</p></div>
+                                        </div>
+                                        <div class="flex items-start gap-3">
+                                            <div class="flex h-8 w-8 shrink-0 items-center justify-center bg-gray-800 text-white rounded-lg"><i data-lucide="camera" class="w-4 h-4"></i></div>
+                                            <div><span class="text-[10px] font-bold uppercase tracking-wider text-gray-800">Langkah 3</span><p class="text-xs text-gray-500">Screenshot atau simpan bukti pembayaran</p></div>
+                                        </div>
+                                        <div class="flex items-start gap-3">
+                                            <div class="flex h-8 w-8 shrink-0 items-center justify-center bg-gray-800 text-white rounded-lg"><i data-lucide="send" class="w-4 h-4"></i></div>
+                                            <div><span class="text-[10px] font-bold uppercase tracking-wider text-gray-800">Langkah 4</span><p class="text-xs text-gray-500">Klik tombol konfirmasi di bawah atau hubungi via WhatsApp</p></div>
+                                        </div>
+                                    </div>
+                                </template>
+                                <!-- Bank Transfer Steps -->
+                                <template x-if="checkoutForm.paymentTab === 'bank'">
+                                    <div class="space-y-3">
+                                        <div class="flex items-start gap-3">
+                                            <div class="flex h-8 w-8 shrink-0 items-center justify-center bg-gray-800 text-white rounded-lg"><i data-lucide="smartphone" class="w-4 h-4"></i></div>
+                                            <div><span class="text-[10px] font-bold uppercase tracking-wider text-gray-800">Langkah 1</span><p class="text-xs text-gray-500">Buka aplikasi m-banking atau ATM</p></div>
+                                        </div>
+                                        <div class="flex items-start gap-3">
+                                            <div class="flex h-8 w-8 shrink-0 items-center justify-center bg-gray-800 text-white rounded-lg"><i data-lucide="copy" class="w-4 h-4"></i></div>
+                                            <div><span class="text-[10px] font-bold uppercase tracking-wider text-gray-800">Langkah 2</span><p class="text-xs text-gray-500">Transfer ke rekening di atas sesuai jumlah yang tertera</p></div>
+                                        </div>
+                                        <div class="flex items-start gap-3">
+                                            <div class="flex h-8 w-8 shrink-0 items-center justify-center bg-gray-800 text-white rounded-lg"><i data-lucide="camera" class="w-4 h-4"></i></div>
+                                            <div><span class="text-[10px] font-bold uppercase tracking-wider text-gray-800">Langkah 3</span><p class="text-xs text-gray-500">Screenshot atau simpan bukti transfer</p></div>
+                                        </div>
+                                        <div class="flex items-start gap-3">
+                                            <div class="flex h-8 w-8 shrink-0 items-center justify-center bg-gray-800 text-white rounded-lg"><i data-lucide="send" class="w-4 h-4"></i></div>
+                                            <div><span class="text-[10px] font-bold uppercase tracking-wider text-gray-800">Langkah 4</span><p class="text-xs text-gray-500">Klik tombol konfirmasi di bawah atau hubungi via WhatsApp</p></div>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+
+                            <!-- Data Pembeli (simplified like PSV) -->
+                            <div class="mt-5 space-y-3 border border-gray-200 rounded-xl p-4">
+                                <p class="text-xs font-bold uppercase tracking-widest text-gray-800">Data Pembeli</p>
+                                <input type="text" x-model="checkoutForm.name" placeholder="Nama lengkap"
+                                    class="w-full border border-gray-200 px-4 py-2.5 text-sm rounded-lg outline-none placeholder:text-gray-400 focus:border-primary focus:ring-1 focus:ring-primary/30">
+                                <input type="email" x-model="checkoutForm.email" :readonly="user" placeholder="Email aktif"
+                                    :class="user ? 'bg-gray-100 text-gray-500' : ''"
+                                    class="w-full border border-gray-200 px-4 py-2.5 text-sm rounded-lg outline-none placeholder:text-gray-400 focus:border-primary focus:ring-1 focus:ring-primary/30">
+                                <input type="tel" x-model="checkoutForm.phone" placeholder="No. WhatsApp (08xxx)"
+                                    class="w-full border border-gray-200 px-4 py-2.5 text-sm rounded-lg outline-none placeholder:text-gray-400 focus:border-primary focus:ring-1 focus:ring-primary/30">
+                                <!-- Alamat hanya untuk produk fisik -->
+                                <template x-if="hasPhysicalItems">
+                                    <div class="space-y-3">
+                                        <textarea x-model="checkoutForm.address" rows="2" placeholder="Alamat pengiriman lengkap"
+                                            class="w-full border border-gray-200 px-4 py-2.5 text-sm rounded-lg outline-none placeholder:text-gray-400 focus:border-primary focus:ring-1 focus:ring-primary/30 resize-none"></textarea>
+                                        <input type="text" x-model="checkoutForm.city" placeholder="Kota"
+                                            class="w-full border border-gray-200 px-4 py-2.5 text-sm rounded-lg outline-none placeholder:text-gray-400 focus:border-primary focus:ring-1 focus:ring-primary/30">
+                                    </div>
+                                </template>
+                            </div>
+
+                            <!-- CTA Buttons (PSV style: Sudah Bayar + WhatsApp) -->
+                            <div class="mt-5 flex flex-col gap-3 sm:flex-row">
+                                <button @click="submitOrder()"
+                                    :disabled="submittingOrder || cart.length === 0 || !checkoutForm.name || !checkoutForm.email || !checkoutForm.phone || (cartIsSeikhlasnya && checkoutForm.seikhlasnyaAmount < 1000)"
+                                    class="flex-1 inline-flex items-center justify-center gap-2 bg-gray-800 text-white px-6 py-3.5 rounded-full text-xs font-bold uppercase tracking-wider hover:bg-gray-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+                                    <div x-show="submittingOrder" class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                    <i x-show="!submittingOrder" data-lucide="shield-check" class="w-4 h-4"></i>
+                                    <span x-text="submittingOrder ? 'Memproses...' : 'Sudah Bayar'"></span>
+                                </button>
+                                <a :href="getWhatsAppConfirmLink()"
+                                    target="_blank" rel="noopener noreferrer"
+                                    class="flex-1 inline-flex items-center justify-center gap-2 bg-green-500 text-white px-6 py-3.5 rounded-full text-xs font-bold uppercase tracking-wider hover:bg-green-600 transition-all">
+                                    <i data-lucide="message-circle" class="w-4 h-4"></i> Konfirmasi via WhatsApp
+                                </a>
+                            </div>
+                        </div>
                     </div>
+
+                    <!-- RIGHT: Order Summary (2 cols, sticky) -->
+                    <div class="lg:col-span-2">
+                        <div class="sticky top-20 bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+                            <h3 class="text-xs font-bold uppercase tracking-widest text-gray-800">Ringkasan Pesanan</h3>
+                            <div class="mt-4 space-y-3">
+                                <template x-for="item in cart" :key="item.product_id">
+                                    <div class="flex items-center gap-3">
+                                        <img :src="item.image_url" class="w-14 h-14 rounded-lg object-cover flex-shrink-0">
+                                        <div class="flex-1 min-w-0">
+                                            <p class="text-sm font-medium line-clamp-2" x-text="item.name"></p>
+                                            <p class="text-xs text-gray-500"><span x-text="item.quantity"></span> x <span x-text="formatPrice(item.price)"></span></p>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                            <div class="mt-4 border-t border-gray-100 pt-4 space-y-2">
+                                <div class="flex justify-between text-xs">
+                                    <span class="text-gray-500">Subtotal</span>
+                                    <span class="font-bold text-gray-800" x-text="formatPrice(getCartTotal())"></span>
+                                </div>
+                                <template x-if="cartIsSeikhlasnya">
+                                    <div class="flex justify-between text-xs">
+                                        <span class="text-gray-500">💝 Nominal Seikhlasnya</span>
+                                        <span class="font-bold text-primary" x-text="formatPrice(checkoutForm.seikhlasnyaAmount)"></span>
+                                    </div>
+                                </template>
+                                <div class="border-t border-gray-100 pt-2 flex justify-between">
+                                    <span class="text-xs font-bold text-gray-800">Total Bayar</span>
+                                    <span class="text-lg font-bold text-primary"
+                                        x-text="formatPrice(cartIsSeikhlasnya ? checkoutForm.seikhlasnyaAmount : getCartTotal())"></span>
+                                </div>
+                            </div>
+                            <div class="mt-4 bg-gray-50 rounded-xl p-3 border-l-2 border-primary">
+                                <p class="text-[10px] text-gray-500 leading-relaxed">
+                                    Pesanan akan diproses setelah pembayaran dikonfirmasi admin (maks. 1x24 jam).
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
-                <button @click="submitOrder()" :disabled="submittingOrder || cart.length === 0"
-                    class="w-full bg-primary text-text font-semibold py-3 rounded-full hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                    <div x-show="submittingOrder"
-                        class="w-5 h-5 border-2 border-text border-t-transparent rounded-full animate-spin"></div><i
-                        x-show="!submittingOrder" data-lucide="credit-card" class="w-5 h-5"></i><span
-                        x-text="submittingOrder ? 'Memproses...' : 'Buat Pesanan'"></span>
-                </button>
             </div>
         </div>
 
-        <!-- ==================== PAYMENT PAGE ==================== -->
-        <div x-show="currentPage === 'payment'" x-transition class="min-h-screen">
-            <div class="sticky top-0 z-30 bg-white/80 backdrop-blur-sm px-4 py-3 border-b border-gray-100">
-                <button @click="currentPage = 'home'; clearCart()"
-                    class="flex items-center gap-2 text-text hover:text-primary transition-colors"><i
-                        data-lucide="arrow-left" class="w-5 h-5"></i><span class="font-medium">Kembali ke
-                        Toko</span></button>
-            </div>
-            <div class="p-4 pb-24" x-show="currentOrder">
-                <div class="text-center py-8">
-                    <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4"><i
-                            data-lucide="check" class="w-10 h-10 text-green-500"></i></div>
-                    <h1 class="text-xl font-bold mb-2">Pesanan Berhasil Dibuat!</h1>
-                    <p class="text-muted text-sm">Nomor Order: <span class="font-mono font-medium"
-                            x-text="currentOrder?.order_number"></span></p>
-                </div>
-                <!-- === TAMPILAN UNTUK PRODUK SEIKHLASNYA === -->
-                <div x-show="currentOrder?.payment_method === 'seikhlasnya'"
-                    class="bg-gradient-to-r from-primary/20 to-yellow-100 rounded-xl shadow-sm border border-primary/30 p-4 mb-6 text-center">
-                    <p class="text-sm text-gray-600 mb-1">💝 Nominal Seikhlasnya</p>
-                    <p class="text-3xl font-bold text-primary" x-text="formatPrice(currentOrder?.total_amount)"></p>
-                    <p class="text-xs text-gray-500 mt-1">Jazakallah khairan atas kebaikanmu 🙏</p>
-                </div>
+        <!-- ==================== PAYMENT CONFIRMATION PAGE (PSV Style) ==================== -->
+        <div x-show="currentPage === 'payment'" x-transition class="min-h-screen bg-gray-50">
+            <div class="mx-auto max-w-lg px-4 py-16 text-center">
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+                    <!-- Clock icon -->
+                    <div class="mx-auto flex h-16 w-16 items-center justify-center border-2 border-primary rounded-full">
+                        <i data-lucide="clock" class="w-8 h-8 text-primary"></i>
+                    </div>
+                    <h2 class="mt-4 text-xl font-bold text-gray-800">Sedang Diproses</h2>
+                    <p class="mt-2 text-xs text-gray-500 leading-relaxed">
+                        Pembayaran kamu sedang menunggu konfirmasi admin. Biasanya selesai dalam 1x24 jam.
+                        Hubungi via WhatsApp untuk mempercepat.
+                    </p>
 
-                <!-- === TAMPILAN UNTUK PRODUK HARGA TETAP === -->
-                <div x-show="currentOrder?.payment_method !== 'seikhlasnya'"
-                    class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6 text-center">
-                    <p class="text-sm text-muted mb-1">Total yang harus dibayar</p>
-                    <p class="text-3xl font-bold text-primary" x-text="formatPrice(currentOrder?.total_amount)"></p>
-                </div>
+                    <!-- Order number -->
+                    <div x-show="currentOrder" class="mt-4 bg-gray-50 rounded-xl p-3">
+                        <p class="text-xs text-gray-500">Nomor Order</p>
+                        <p class="font-mono font-bold text-gray-800" x-text="currentOrder?.order_number"></p>
+                    </div>
 
-                <!-- Transfer Bank — tampil untuk seikhlasnya (semua opsi) ATAU transfer biasa -->
-                <div x-show="currentOrder?.payment_method === 'seikhlasnya' ? storeSettings.bank_account_number : currentOrder?.payment_method === 'transfer'"
-                    class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-4">
-                    <h2 class="font-semibold mb-3 flex items-center gap-2"><i data-lucide="building-2" class="w-4 h-4 text-primary"></i> Transfer Bank</h2>
-                    <div class="bg-gray-50 rounded-xl p-4 space-y-2">
-                        <div class="flex justify-between"><span class="text-sm text-muted">Bank</span><span
-                                class="text-sm font-medium" x-text="storeSettings.bank_name || '-'"></span></div>
-                        <div class="flex justify-between items-center"><span class="text-sm text-muted">No.
-                                Rekening</span>
-                            <div class="flex items-center gap-2"><span class="text-sm font-mono font-medium"
-                                    x-text="storeSettings.bank_account_number || '-'"></span><button
-                                    @click="copyToClipboard(storeSettings.bank_account_number)" class="text-primary"><i
-                                        data-lucide="copy" class="w-4 h-4"></i></button></div>
-                        </div>
-                        <div class="flex justify-between"><span class="text-sm text-muted">Atas Nama</span><span
-                                class="text-sm font-medium" x-text="storeSettings.bank_account_name || '-'"></span>
-                        </div>
+                    <!-- Amount paid -->
+                    <div x-show="currentOrder" class="mt-3 bg-gradient-to-r from-primary/10 to-yellow-50 rounded-xl p-4 border border-primary/20">
+                        <p class="text-xs text-gray-500 mb-1" x-text="currentOrder?.payment_method === 'seikhlasnya' ? '💝 Nominal Seikhlasnya' : 'Total Pembayaran'"></p>
+                        <p class="text-2xl font-bold text-primary" x-text="formatPrice(currentOrder?.total_amount)"></p>
                     </div>
-                    <p class="text-xs text-muted mt-3" x-text="currentOrder?.payment_method === 'seikhlasnya' ? '* Transfer sesuai nominal yang kamu pilih' : '* Transfer tepat sesuai jumlah total'"></p>
-                </div>
 
-                <!-- QRIS — tampil untuk seikhlasnya (semua opsi) ATAU qris biasa -->
-                <div x-show="currentOrder?.payment_method === 'seikhlasnya' ? storeSettings.qris_image_url : currentOrder?.payment_method === 'qris'"
-                    class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
-                    <h2 class="font-semibold mb-3 flex items-center gap-2"><i data-lucide="qr-code" class="w-4 h-4 text-primary"></i> QRIS</h2>
-                    <div class="text-center"><img
-                            :src="storeSettings.qris_image_url || 'https://via.placeholder.com/300x300?text=QRIS+Not+Set'"
-                            alt="QRIS Code" class="w-48 h-48 mx-auto rounded-xl border border-gray-200">
-                        <p class="text-xs text-muted mt-3">Scan QR code pakai e-wallet atau mobile banking</p>
+                    <!-- CTA Buttons -->
+                    <div class="mt-6 flex flex-col gap-3">
+                        <a :href="getWhatsAppConfirmLink()"
+                            target="_blank" rel="noopener noreferrer"
+                            class="inline-flex items-center justify-center gap-2 bg-green-500 text-white px-6 py-3.5 rounded-full text-xs font-bold uppercase tracking-wider hover:bg-green-600 transition-all">
+                            <i data-lucide="message-circle" class="w-4 h-4"></i> Konfirmasi via WhatsApp
+                        </a>
+                        <a href="member.html"
+                            class="inline-flex items-center justify-center gap-2 border border-gray-200 px-6 py-3 rounded-full text-xs font-bold uppercase tracking-wider text-gray-500 hover:border-gray-400 hover:text-gray-800 transition-colors">
+                            Cek Status Pesanan
+                        </a>
+                        <button @click="currentPage = 'home'; clearCart()"
+                            class="inline-flex items-center justify-center gap-2 text-xs text-gray-400 hover:text-gray-600 transition-colors py-2">
+                            Kembali ke Toko
+                        </button>
                     </div>
-                </div>
-                <div x-show="!currentOrder?.payment_proof_url"
-                    class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
-                    <h2 class="font-semibold mb-4">Upload Bukti Pembayaran</h2>
-                    <div class="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center hover:border-primary/50 transition-colors cursor-pointer"
-                        @click="$refs.paymentProofInput.click()">
-                        <input type="file" x-ref="paymentProofInput" @change="uploadPaymentProof($event)"
-                            accept="image/*" class="hidden">
-                        <i data-lucide="upload-cloud" class="w-10 h-10 text-gray-400 mx-auto mb-2"></i>
-                        <p class="text-sm text-gray-500">Klik untuk upload bukti pembayaran</p>
-                        <p class="text-xs text-gray-400 mt-1">JPG, PNG max 5MB</p>
-                    </div>
-                    <div x-show="uploadingProof" class="mt-3 text-center">
-                        <div
-                            class="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto">
-                        </div>
-                        <p class="text-xs text-muted mt-1">Mengupload...</p>
-                    </div>
-                </div>
-                <div x-show="currentOrder?.payment_proof_url"
-                    class="bg-green-50 border border-green-200 rounded-xl p-4 mb-6">
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center"><i
-                                data-lucide="check-circle" class="w-5 h-5 text-green-500"></i></div>
-                        <div>
-                            <p class="font-medium text-green-800">Bukti pembayaran terkirim!</p>
-                            <p class="text-sm text-green-600">Kami akan memverifikasi dalam 1x24 jam</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="space-y-3">
-                    <a href="member.html"
-                        class="block w-full bg-primary text-text font-semibold py-3 rounded-full hover:bg-primary/90 transition-colors text-center">Cek
-                        Status Pesanan</a>
-                    <button @click="currentPage = 'home'; clearCart()"
-                        class="w-full border border-gray-200 text-text font-semibold py-3 rounded-full hover:bg-gray-50 transition-colors">Kembali
-                        ke Toko</button>
                 </div>
             </div>
         </div>
@@ -1015,7 +1071,7 @@
                 storeSettings: {},
                 customerCount: 0,
                 isLoading: true,
-                checkoutForm: { name: '', email: '', phone: '', address: '', city: '', notes: '', paymentMethod: 'seikhlasnya', seikhlasnyaAmount: 0, customAmountValue: '' },
+                checkoutForm: { name: '', email: '', phone: '', address: '', city: '', notes: '', paymentMethod: 'seikhlasnya', paymentTab: 'qris', seikhlasnyaAmount: 0, customAmountValue: '' },
                 currentOrder: null,
                 submittingOrder: false,
                 uploadingProof: false,
@@ -1186,6 +1242,20 @@
                     this.currentPage = 'checkout'; window.scrollTo(0, 0); this.$nextTick(() => { try { lucide.createIcons(); } catch (e) { } });
                 },
 
+                getWhatsAppConfirmLink() {
+                    const storeName = this.storeSettings.store_name || 'Toko';
+                    const wa = this.storeSettings.admin_whatsapp || '';
+                    const name = this.checkoutForm.name || 'Pelanggan';
+                    const email = this.checkoutForm.email || '-';
+                    const amount = this.cartIsSeikhlasnya ? this.checkoutForm.seikhlasnyaAmount : this.getCartTotal();
+                    const items = this.cart.map(i => i.name).join(', ');
+                    const orderNum = this.currentOrder?.order_number || '';
+                    const text = encodeURIComponent(
+                        `Halo ${storeName}, saya ${name} sudah menyelesaikan pembayaran${orderNum ? ' untuk order ' + orderNum : ''}.\n\nProduk: ${items}\nTotal: ${this.formatPrice(amount)}\nEmail: ${email}\n\nMohon konfirmasinya. Terima kasih.`
+                    );
+                    return `https://wa.me/${wa}?text=${text}`;
+                },
+
                 async submitOrder() {
                     if (!this.checkoutForm.name || !this.checkoutForm.email || !this.checkoutForm.phone) { this.showToast('Mohon lengkapi data pembeli', 'error'); return; }
                     if (this.hasPhysicalItems && (!this.checkoutForm.address || !this.checkoutForm.city)) { this.showToast('Mohon lengkapi alamat pengiriman', 'error'); return; }
@@ -1194,7 +1264,7 @@
                     if (!this.user) { this.showAuthModal = true; return; }
                     this.submittingOrder = true;
                     const finalAmount = this.cartIsSeikhlasnya ? this.checkoutForm.seikhlasnyaAmount : this.getCartTotal();
-                    const finalMethod = this.cartIsSeikhlasnya ? 'seikhlasnya' : this.checkoutForm.paymentMethod;
+                    const finalMethod = this.cartIsSeikhlasnya ? 'seikhlasnya' : this.checkoutForm.paymentTab;
                     try {
                         this.trackAddPaymentInfo(finalMethod);
                         const orderData = { user_id: this.user.id, customer_name: this.checkoutForm.name, customer_email: this.checkoutForm.email, customer_phone: this.checkoutForm.phone, total_amount: finalAmount, payment_method: finalMethod, shipping_address: this.checkoutForm.address || null, shipping_city: this.checkoutForm.city || null, notes: this.checkoutForm.notes || null, has_physical_items: this.hasPhysicalItems };
@@ -1205,6 +1275,8 @@
                         if (itemsError) throw itemsError;
                         this.currentOrder = order;
                         this.trackPurchase(order);
+                        // Open WhatsApp confirmation (PSV style)
+                        window.open(this.getWhatsAppConfirmLink(), '_blank');
                         this.currentPage = 'payment'; window.scrollTo(0, 0); this.showToast('Pesanan berhasil dibuat!');
                     } catch (error) { console.error('Error submitting order:', error); this.showToast('Gagal membuat pesanan', 'error'); }
                     this.submittingOrder = false;
