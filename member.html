@@ -408,6 +408,30 @@
                 </form>
             </div>
 
+            <!-- Ganti Password -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mt-4">
+                <h2 class="font-bold text-lg mb-4">Ganti Password</h2>
+                <form @submit.prevent="changePassword()" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1.5">Password Baru</label>
+                        <input type="password" x-model="passwordForm.password" required placeholder="Masukkan password baru"
+                            class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1.5">Konfirmasi Password Baru</label>
+                        <input type="password" x-model="passwordForm.confirmPassword" required placeholder="Konfirmasi password baru"
+                            class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all">
+                    </div>
+                    <button type="submit" :disabled="savingPassword"
+                        class="w-full bg-primary text-text font-semibold py-3 rounded-full hover:bg-primary/90 transition-colors flex items-center justify-center gap-2">
+                        <div x-show="savingPassword"
+                            class="w-5 h-5 border-2 border-text border-t-transparent rounded-full animate-spin"></div>
+                        <i x-show="!savingPassword" data-lucide="lock" class="w-5 h-5"></i>
+                        <span x-text="savingPassword ? 'Menyimpan...' : 'Ganti Password'"></span>
+                    </button>
+                </form>
+            </div>
+
             <!-- Account Info -->
             <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mt-4">
                 <h2 class="font-bold text-lg mb-4">Informasi Akun</h2>
@@ -614,6 +638,8 @@
                 profileForm: { full_name: '', phone: '', address: '', city: '' },
                 isEditing: false,
                 storeSettings: {},
+                passwordForm: { password: '', confirmPassword: '' },
+                savingPassword: false,
 
                 // Loading states
                 isLoading: true,
@@ -868,6 +894,32 @@
                     }
 
                     this.savingProfile = false;
+                },
+
+                async changePassword() {
+                    if (this.passwordForm.password.length < 6) {
+                        this.showToast('Password minimal 6 karakter', 'error');
+                        return;
+                    }
+                    if (this.passwordForm.password !== this.passwordForm.confirmPassword) {
+                        this.showToast('Konfirmasi password tidak cocok', 'error');
+                        return;
+                    }
+                    this.savingPassword = true;
+                    try {
+                        const { error } = await supabase.auth.updateUser({
+                            password: this.passwordForm.password
+                        });
+                        if (error) throw error;
+                        this.showToast('Password berhasil diperbarui');
+                        this.passwordForm.password = '';
+                        this.passwordForm.confirmPassword = '';
+                    } catch (error) {
+                        console.error('Error changing password:', error);
+                        this.showToast(error.message || 'Gagal mengubah password', 'error');
+                    } finally {
+                        this.savingPassword = false;
+                    }
                 },
 
                 showOrderDetailModal(order) {

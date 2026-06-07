@@ -1156,7 +1156,7 @@
 
                 getWhatsAppConfirmLink() {
                     const storeName = this.storeSettings.store_name || 'Toko';
-                    const wa = this.storeSettings.admin_whatsapp || '';
+                    const wa = this.storeSettings.whatsapp_number || '';
                     const name = this.checkoutForm.name || 'Pelanggan';
                     const email = this.checkoutForm.email || '-';
                     const amount = this.cartIsSeikhlasnya ? this.checkoutForm.seikhlasnyaAmount : this.getCartTotal();
