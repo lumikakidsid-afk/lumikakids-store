@@ -1047,6 +1047,13 @@
                     const { data, error } = await supabase.from('store_settings').select('*').single();
                     if (error) console.error('Error loading settings:', error);
                     else {
+                        if (data && data.whatsapp_number) {
+                            let cleaned = data.whatsapp_number.replace(/\D/g, '');
+                            if (cleaned.startsWith('0')) {
+                                cleaned = '62' + cleaned.slice(1);
+                            }
+                            data.whatsapp_number = cleaned;
+                        }
                         this.storeSettings = data || {};
                         this.initTracking();
                     }

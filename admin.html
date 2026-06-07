@@ -2104,6 +2104,13 @@
                         .single();
 
                     if (data) {
+                        if (data.whatsapp_number) {
+                            let cleaned = data.whatsapp_number.replace(/\D/g, '');
+                            if (cleaned.startsWith('0')) {
+                                cleaned = '62' + cleaned.slice(1);
+                            }
+                            data.whatsapp_number = cleaned;
+                        }
                         this.settingsForm = { ...data };
                         if (data.banner_urls && Array.isArray(data.banner_urls)) {
                             this.bannerPreviews = data.banner_urls.map(b => typeof b === 'object' ? b.image : b);
@@ -2490,6 +2497,14 @@
                             image: imgUrl,
                             link: this.bannerLinks[idx] || ''
                         }));
+
+                        if (this.settingsForm.whatsapp_number) {
+                            let cleaned = this.settingsForm.whatsapp_number.replace(/\D/g, '');
+                            if (cleaned.startsWith('0')) {
+                                cleaned = '62' + cleaned.slice(1);
+                            }
+                            this.settingsForm.whatsapp_number = cleaned;
+                        }
 
                         const { error } = await supabase
                             .from('store_settings')
