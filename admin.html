@@ -1432,7 +1432,7 @@
 
                     <!-- Action Buttons -->
                     <div class="space-y-2">
-                        <button x-show="selectedOrder?.status === 'pending' && selectedOrder?.payment_proof_url"
+                        <button x-show="selectedOrder?.status === 'pending'"
                             @click="updateOrderStatus('confirmed')" :disabled="updatingOrder"
                             class="w-full bg-green-500 text-white font-semibold py-3 rounded-full hover:bg-green-600 transition-colors flex items-center justify-center gap-2">
                             <i data-lucide="check" class="w-5 h-5"></i>
